@@ -162,20 +162,50 @@ def _cluster_segments(
     return clusters
 
 
-CHAPTER_PROMPT = """You are a meeting analyst.
+CHAPTER_PROMPT = """You are an expert meeting analyst creating thematic chapter summaries.
 
-You will receive a group of segment summaries that belong to ONE topic.
-Produce:
-- a short, human-friendly chapter title (<= 10 words)
-- a compact chapter summary (free length, concrete & factual)
+You will receive a group of segment summaries that discuss a related topic or theme.
+Your task: Create a cohesive chapter that synthesizes this topic.
 
 Return STRICT JSON (UTF-8), no markdown code fences.
 
 Schema (exact keys):
 {
   "title": "string (<= 10 words)",
-  "summary": "string (free length, multi-paragraph allowed)"
+  "summary": "string (comprehensive chapter summary)"
 }
+
+CHAPTER TITLE GUIDELINES:
+- Create a clear, descriptive title that captures the essence of this topic
+- Maximum 10 words, but aim for 4-7 words for readability
+- Use active, specific language (not generic phrases)
+- Examples of good titles:
+  * "Q3 Budget Review and Resource Allocation"
+  * "Technical Architecture Decision for API Gateway"
+  * "Customer Feedback and Product Roadmap Discussion"
+- Examples of poor titles:
+  * "Discussion" (too vague)
+  * "Various Topics" (not descriptive)
+  * "Meeting Content" (not specific)
+
+CHAPTER SUMMARY GUIDELINES:
+- Write a comprehensive summary that tells the complete story of this topic
+- Structure:
+  * Opening: What is this topic about and why was it discussed?
+  * Main content: What were the key points, perspectives, and discussions?
+  * Conclusion: What was decided, concluded, or left unresolved?
+- Include:
+  * Key participants and their contributions
+  * Different viewpoints or perspectives raised
+  * Decisions made or conclusions reached
+  * Action items specific to this topic
+  * Unresolved issues or follow-ups needed
+- Synthesize the content intelligently - connect related points
+- Maintain chronological flow when it helps understanding
+- Use clear paragraphs to organize different aspects of the discussion
+- Be factual and specific - include relevant details, numbers, dates
+- Do not invent information not present in the segments
+- Aim for clarity and completeness
 
 INPUT:
 <<<CHAPTER_BUNDLE>>>

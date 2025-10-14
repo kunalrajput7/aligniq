@@ -5,11 +5,18 @@ import { calculateMentions } from '@/lib/utils';
 
 interface MentionsCounterProps {
   whoDidWhat: WhoDidWhat[];
+  participants: string[];
 }
 
-export function MentionsCounter({ whoDidWhat }: MentionsCounterProps) {
+export function MentionsCounter({ whoDidWhat, participants }: MentionsCounterProps) {
   const mentions = calculateMentions(whoDidWhat);
-  const sortedMentions = Object.entries(mentions).sort((a, b) => b[1] - a[1]);
+
+  // Filter to only show actual meeting participants
+  const filteredMentions = Object.entries(mentions).filter(([person]) =>
+    participants.includes(person)
+  );
+
+  const sortedMentions = filteredMentions.sort((a, b) => b[1] - a[1]);
 
   return (
     <Card>

@@ -8,24 +8,53 @@ from typing import List, Dict, Any, Optional
 from .common import _resolve_model, _truncate, COLLECTIVE_MAX_CHARS, call_ollama_cloud
 
 
-COLLECTIVE_PROMPT = """You are a meeting analyst.
+COLLECTIVE_PROMPT = """You are an expert meeting analyst creating an executive summary of the entire meeting.
 
-You will receive multiple 10-minute segment summaries and sparse timeline key points.
-Write ONE comprehensive, cohesive summary for the ENTIRE meeting.
+You will receive segment summaries and timeline key points from throughout the meeting.
+Your task: Synthesize these into ONE comprehensive, executive-level summary.
+
 Return STRICT JSON (UTF-8), no markdown code fences.
 
 Schema (exact keys):
 {
-  "collective_summary": "<free-length, structured narrative capturing the whole meeting>"
+  "collective_summary": "<comprehensive meeting summary>"
 }
 
-Guidelines:
-- Synthesize, do not repeat every sentence.
-- Preserve correct names, roles, decisions, and major threads.
-- Prefer concrete facts over fluff; stitch segments into a coherent storyline.
-- If themes evolved across segments, reflect that evolution.
-- Avoid inventing new facts not present in the provided inputs.
-- Use paragraphs and logical flow; headings are okay.
+SUMMARY STRUCTURE & GUIDELINES:
+
+1. OPENING CONTEXT (1-2 paragraphs):
+   - What was the meeting about and what were the main goals?
+   - Who were the key participants and their roles (if mentioned)?
+   - Set the stage for the discussion
+
+2. MAIN DISCUSSION POINTS (organized thematically):
+   - Group related topics together, even if discussed across different segments
+   - For each major topic, include: what was discussed, who contributed, what was decided
+   - Preserve the logical flow and evolution of ideas
+   - Include important technical details, numbers, dates, and specific commitments
+   - Highlight any disagreements, concerns, or alternative viewpoints raised
+
+3. DECISIONS & ACTION ITEMS:
+   - Clearly state what decisions were made and by whom
+   - List action items with owners and deadlines (if mentioned)
+   - Note any pending decisions or follow-ups needed
+
+4. CONCERNS & BLOCKERS:
+   - Surface any risks, blockers, or challenges discussed
+   - Include proposed solutions or mitigation strategies
+
+5. OUTCOMES & NEXT STEPS:
+   - Summarize what was accomplished in the meeting
+   - State clear next steps and expectations
+
+QUALITY STANDARDS:
+- Write in clear, professional language suitable for stakeholders who weren't present
+- Synthesize information intelligently - avoid simply concatenating segment summaries
+- Show connections between related points discussed at different times
+- Maintain factual accuracy - never invent details not in the source material
+- Use proper paragraphs and structure with section headings where helpful
+- Be comprehensive but avoid unnecessary repetition
+- Focus on "what matters" - decisions, commitments, problems, and solutions
 
 INPUT:
 <<<MEETING_BUNDLE>>>

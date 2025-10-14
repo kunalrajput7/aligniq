@@ -26,22 +26,9 @@ export function ChaptersList({ chapters }: ChaptersListProps) {
         chapters.map((chapter, idx) => (
           <Card key={chapter.chapter_id}>
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-xl">
-                    {idx + 1}. {chapter.title}
-                  </CardTitle>
-                  <CardDescription className="mt-2">
-                    <div className="flex flex-wrap gap-2">
-                      {chapter.segment_ids.map((segId) => (
-                        <Badge key={segId} variant="outline" className="text-xs">
-                          {segId}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardDescription>
-                </div>
-              </div>
+              <CardTitle className="text-xl">
+                {idx + 1}. {chapter.title}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-relaxed whitespace-pre-wrap">

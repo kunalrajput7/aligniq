@@ -122,10 +122,58 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
         )}
 
         {isLoading && (
-          <div className="mt-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Processing your meeting transcript... This may take a few minutes.
-            </p>
+          <div className="mt-6 space-y-4">
+            <div className="text-center">
+              <p className="text-sm font-medium text-primary mb-2">
+                Processing your meeting transcript...
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This may take a few minutes. Please don't close this window.
+              </p>
+            </div>
+
+            {/* GIF Gallery */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              <div className="space-y-2">
+                <div className="aspect-video bg-muted rounded-lg overflow-hidden border-2 border-primary/20">
+                  <img
+                    src="/loading/segment_summary.gif"
+                    alt="Creating segment summaries"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <p className="text-xs text-center font-medium">Analyzing segments</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="aspect-video bg-muted rounded-lg overflow-hidden border-2 border-primary/20">
+                  <img
+                    src="/loading/filtering_employee_input.gif"
+                    alt="Filtering and processing"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <p className="text-xs text-center font-medium">Extracting insights</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="aspect-video bg-muted rounded-lg overflow-hidden border-2 border-primary/20">
+                  <img
+                    src="/loading/tasks_todos.gif"
+                    alt="Generating tasks and todos"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <p className="text-xs text-center font-medium">Creating action items</p>
+              </div>
+            </div>
+
+            {/* Progress indicator */}
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse delay-150" />
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse delay-300" />
+            </div>
           </div>
         )}
       </CardContent>

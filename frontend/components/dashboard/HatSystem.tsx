@@ -9,17 +9,17 @@ interface HatSystemProps {
 }
 
 export function HatSystem({ hats, participants }: HatSystemProps) {
-  // Group hats by speaker
+  // Group unique hats by speaker
   const hatsByPerson = hats.reduce((acc, hat) => {
     if (!acc[hat.speaker]) {
-      acc[hat.speaker] = [];
+      acc[hat.speaker] = new Set<string>();
     }
-    acc[hat.speaker].push(hat);
+    acc[hat.speaker].add(hat.hat);
     return acc;
-  }, {} as Record<string, Hat[]>);
+  }, {} as Record<string, Set<string>>);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Brain className="h-6 w-6" />
         <h2 className="text-2xl font-bold">Six Thinking Hats Analysis</h2>
@@ -31,10 +31,10 @@ export function HatSystem({ hats, participants }: HatSystemProps) {
           <CardTitle className="text-lg">Hat Legend</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {Object.entries(HAT_DESCRIPTIONS).map(([hatKey, hatInfo]) => (
               <div key={hatKey} className={`p-3 rounded-lg border-2 ${hatInfo.color}`}>
-                <div className="font-semibold">{hatInfo.name}</div>
+                <div className="font-semibold text-sm">{hatInfo.name}</div>
                 <p className="text-xs mt-1 opacity-80">{hatInfo.description}</p>
               </div>
             ))}
@@ -42,7 +42,7 @@ export function HatSystem({ hats, participants }: HatSystemProps) {
         </CardContent>
       </Card>
 
-      {/* Hats by Person */}
+      {/* Hats by Person - Simple Display */}
       {Object.keys(hatsByPerson).length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -50,37 +50,33 @@ export function HatSystem({ hats, participants }: HatSystemProps) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(hatsByPerson).map(([speaker, speakerHats]) => (
-            <Card key={speaker}>
-              <CardHeader>
-                <CardTitle className="text-lg">{speaker}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {speakerHats.map((hat, idx) => {
-                  const hatInfo = HAT_DESCRIPTIONS[hat.hat];
-                  return (
-                    <div key={idx} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge className={hatInfo.color}>
-                          {hatInfo.name}
-                        </Badge>
-                        {hat.t && (
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {hat.t}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {hat.evidence}
-                      </p>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Hats Worn by Participants</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(hatsByPerson).map(([speaker, speakerHatSet]) => {
+                const speakerHats = Array.from(speakerHatSet);
+                return (
+                  <div key={speaker} className="p-4 bg-muted/50 rounded-lg space-y-2">
+                    <div className="font-semibold text-sm">{speaker}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {speakerHats.map((hatKey) => {
+                        const hatInfo = HAT_DESCRIPTIONS[hatKey as Hat['hat']];
+                        return (
+                          <Badge key={hatKey} className={`${hatInfo.color} text-xs`}>
+                            {hatInfo.name}
+                          </Badge>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

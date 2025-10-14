@@ -8,10 +8,10 @@ from typing import List, Dict, Any, Optional
 from .common import _resolve_model, _truncate, ITEMS_MAX_CHARS, call_ollama_cloud
 
 
-ITEMS_PROMPT = """You are a meeting analyst.
+ITEMS_PROMPT = """You are an expert meeting analyst extracting structured, actionable information.
 
-You will receive PER-SEGMENT SUMMARIES (Stage-1) with sparse timeline key points.
-Extract the following for the ENTIRE meeting.
+You will receive segment summaries with timeline key points from the entire meeting.
+Your task: Extract and structure all actionable items, decisions, contributions, and insights.
 
 Return STRICT JSON (UTF-8), no markdown code fences.
 
@@ -37,20 +37,67 @@ Schema (exact keys):
   ]
 }
 
-Guidelines:
-- Use only facts in the provided inputs. If uncertain, set confidence ≤ 0.5.
-- Prefer using segment ids (seg-XXXX) or provided MM:SS from key points for "when".
-- Hats: classify moments by the Six Thinking Hats. It's okay if multiple hats appear per speaker.
-  * White Hat: data, facts, information
-  * Red Hat: emotions, feelings, intuition
-  * Black Hat: caution, difficulties, critical thinking
-  * Yellow Hat: positivity, benefits, optimism
-  * Green Hat: creativity, alternatives, new ideas
-  * Blue Hat: process, control, organization, planning
-- Achievements: concrete outcomes reached in or before this meeting (wins, deliveries, approvals).
-- Blockers: obstacles impeding progress; owner is the person/group responsible to remove it, if mentioned.
-- Evidence snippets should be short, directly traceable to the inputs.
-- If a list is empty, return [] for that list.
+DETAILED EXTRACTION GUIDELINES:
+
+1. WHO DID WHAT (Contributions):
+   - Document significant contributions, presentations, or demonstrations
+   - Include what the person accomplished, shared, or contributed
+   - Use timestamps from key points or segment IDs for "when"
+   - Set confidence based on how explicitly this was stated (0.8-1.0 for explicit, 0.4-0.7 for implicit)
+
+2. TASKS (Action Items):
+   - Extract all action items, todos, and commitments
+   - Task: Clear, specific description of what needs to be done
+   - Owner: Person who mentioned/suggested the task (if different from assignee)
+   - Assignee: Person responsible for completing the task
+   - Due date: Extract explicit dates mentioned (YYYY-MM-DD format)
+   - Status: "assigned", "in-progress", "pending", or null
+   - Be thorough - capture even small action items if explicitly mentioned
+
+3. DECISIONS:
+   - Document all decisions made during the meeting
+   - Decision: Clear statement of what was decided
+   - Decider: List all people involved in making the decision
+   - Impact: Expected consequences or affected areas (if discussed)
+   - Include both major decisions and smaller tactical choices
+   - Confidence: 0.8-1.0 for explicit decisions, 0.4-0.7 for implicit agreement
+
+4. SIX THINKING HATS (Cognitive Modes):
+   - Classify significant moments by thinking mode:
+     * White Hat: Presenting data, facts, figures, objective information
+     * Red Hat: Expressing feelings, emotions, gut reactions, intuition
+     * Black Hat: Raising concerns, risks, problems, critical analysis
+     * Yellow Hat: Highlighting benefits, optimism, positive outcomes
+     * Green Hat: Proposing new ideas, creative alternatives, brainstorming
+     * Blue Hat: Managing process, organizing discussion, planning next steps
+   - Focus on notable moments that exemplify these thinking modes
+   - A speaker may wear multiple hats throughout the meeting
+
+5. ACHIEVEMENTS (Wins & Accomplishments):
+   - Completed milestones, successful deliveries, approvals received
+   - Personal or team accomplishments mentioned
+   - Problems solved, goals reached
+   - Include context about why this is significant
+
+6. BLOCKERS (Obstacles & Issues):
+   - Problems preventing progress
+   - Dependencies waiting on others
+   - Technical or resource constraints
+   - Blocker: Clear description of the obstacle
+   - Member: Person/team affected by the blocker
+   - Owner: Person/team responsible for resolving it (if mentioned)
+
+QUALITY STANDARDS:
+- ONLY extract information explicitly present in the source material
+- Be comprehensive - extract all relevant items, don't arbitrarily limit
+- Set confidence scores honestly:
+  * 0.9-1.0: Explicitly stated with clear evidence
+  * 0.7-0.8: Strongly implied with good context
+  * 0.5-0.6: Reasonably inferred but not explicit
+  * 0.3-0.4: Uncertain inference
+- Evidence quotes should be short but meaningful snippets
+- If a category has no items, return empty array []
+- Preserve exact names, don't normalize or guess spellings
 
 INPUT:
 <<<ITEMS_BUNDLE>>>

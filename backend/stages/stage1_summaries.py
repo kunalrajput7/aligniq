@@ -12,28 +12,41 @@ from .common import _resolve_model, _truncate, MAX_CHARS, call_ollama_cloud
 Segment = Dict[str, object]
 
 
-SUMMARY_PROMPT_STAGE1 = """You are a meeting analyst.
+SUMMARY_PROMPT_STAGE1 = """You are an expert meeting analyst specializing in creating actionable meeting summaries.
 
-Summarize the following 10-minute transcript segment in DETAIL (no word limit).
-Also extract a sparse set of TIMELINE KEY POINTS for a timeline UI.
+Your task is to analyze this 10-minute transcript segment and produce:
+1. A COMPREHENSIVE SUMMARY capturing all key discussions, decisions, and context
+2. TIMELINE KEY POINTS for visual timeline representation
 
 Return STRICT JSON (UTF-8), no markdown code fences.
 
 Schema (exact keys):
 {
   "segment_id": "seg-XXXX",
-  "summary": "<no word limit>",
-  "key_points": { "MM:SS": "concise, factual point", "...": "..." }
+  "summary": "<detailed narrative with full context>",
+  "key_points": { "MM:SS": "concise, impactful point", "...": "..." }
 }
 
 Transcript (local time | speaker | sentence):
 <<<SEGMENT_TEXT>>>
 
-Rules:
-- Use timestamps from the segment text (MM:SS format).
-- Key points must be short, factual, and useful anchors for a timeline (2–10 points typical).
-- Do not invent facts, owners, or dates that are not present.
-- If you cannot find good points, return an empty object for key_points.
+SUMMARY GUIDELINES:
+- Write a detailed, flowing narrative that captures the full context and nuance
+- Include WHO said or did WHAT, and WHY when mentioned
+- Highlight key decisions, action items, concerns, and blockers
+- Preserve important technical details, numbers, and specific terminology
+- Connect related points to show the flow of discussion
+- Use clear paragraphs to organize different topics discussed in this segment
+- DO NOT invent information not present in the transcript
+- Aim for clarity and completeness over brevity
+
+KEY POINTS GUIDELINES:
+- Select 3-8 most significant moments that would be useful as timeline markers
+- Each key point should be impactful, specific, and self-contained
+- Prefer: decisions made, action items assigned, problems raised, achievements mentioned
+- Use exact MM:SS timestamps from the transcript
+- Keep each point concise (1 sentence max) but meaningful
+- If no significant events occurred, return empty object for key_points
 """
 
 

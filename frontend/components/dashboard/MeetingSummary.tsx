@@ -7,21 +7,21 @@ interface MeetingSummaryProps {
 }
 
 export function MeetingSummary({ summary }: MeetingSummaryProps) {
-  // Parse summary to format it better
+  // Parse summary to format it better with proper line breaks
   const formatSummary = (text: string) => {
     if (!text) return null;
 
-    // Split by paragraphs
-    const paragraphs = text.split('\n\n').filter(p => p.trim());
+    // Split by single line breaks to preserve original paragraph structure
+    const lines = text.split('\n').filter(line => line.trim());
 
-    return paragraphs.map((para, idx) => {
-      const trimmed = para.trim();
+    return lines.map((line, idx) => {
+      const trimmed = line.trim();
 
       // Check if it's a heading (starts with ###)
       if (trimmed.startsWith('###')) {
         const heading = trimmed.replace(/^###\s*/, '');
         return (
-          <h3 key={idx} className="text-lg font-bold text-foreground mt-6 mb-3 first:mt-0">
+          <h3 key={idx} className="text-base font-bold text-foreground mt-4 mb-2 first:mt-0">
             {heading}
           </h3>
         );
@@ -31,15 +31,25 @@ export function MeetingSummary({ summary }: MeetingSummaryProps) {
       if (trimmed.startsWith('##')) {
         const heading = trimmed.replace(/^##\s*/, '');
         return (
-          <h2 key={idx} className="text-xl font-bold text-foreground mt-6 mb-3 first:mt-0">
+          <h2 key={idx} className="text-lg font-bold text-foreground mt-5 mb-3 first:mt-0">
             {heading}
           </h2>
         );
       }
 
-      // Regular paragraph
+      // Check if it's a main heading (starts with #)
+      if (trimmed.startsWith('#')) {
+        const heading = trimmed.replace(/^#\s*/, '');
+        return (
+          <h1 key={idx} className="text-xl font-bold text-foreground mt-6 mb-3 first:mt-0">
+            {heading}
+          </h1>
+        );
+      }
+
+      // Regular paragraph or line
       return (
-        <p key={idx} className="text-sm leading-relaxed text-muted-foreground mb-4">
+        <p key={idx} className="text-sm leading-relaxed text-foreground mb-3">
           {trimmed}
         </p>
       );
@@ -55,10 +65,10 @@ export function MeetingSummary({ summary }: MeetingSummaryProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[400px] w-full pr-4">
+        <ScrollArea className="h-[500px] w-full pr-4">
           <div className="prose prose-sm max-w-none">
             {summary ? (
-              <div className="space-y-2">{formatSummary(summary)}</div>
+              <div>{formatSummary(summary)}</div>
             ) : (
               <p className="text-sm text-muted-foreground italic">No summary available</p>
             )}
