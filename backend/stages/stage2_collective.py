@@ -3,9 +3,9 @@ Stage 2: Create collective summary from all segment summaries with structured ex
 """
 from __future__ import annotations
 import json
-import time
+import asyncio
 from typing import List, Dict, Any, Optional
-from .common import _resolve_model, _truncate, COLLECTIVE_MAX_CHARS, call_ollama_cloud
+from .common import _resolve_model, _truncate, COLLECTIVE_MAX_CHARS, call_ollama_cloud_async
 
 
 COLLECTIVE_PROMPT = """You are an expert meeting analyst creating an executive summary of the entire meeting.
@@ -207,14 +207,14 @@ def _parse_json_collective(s: str) -> Dict[str, Any]:
     }
 
 
-def summarize_collective(
+async def summarize_collective_async(
     segment_summaries: List[Dict[str, Any]],
     model: Optional[str] = None,
     max_retries: int = 3,
     sleep_sec: float = 0.8,
 ) -> Dict[str, Any]:
     """
-    Create collective summary from segment summaries with structured extraction.
+    Create collective summary from segment summaries with structured extraction asynchronously.
 
     Args:
         segment_summaries: List of segment summary dicts
@@ -241,7 +241,7 @@ def summarize_collective(
 
     for attempt in range(1, max_retries + 1):
         try:
-            content = call_ollama_cloud(model, messages, json_mode=True)
+            content = await call_ollama_cloud_async(model, messages, json_mode=True)
             return _parse_json_collective(content)
         except Exception as e:
             if attempt == max_retries:
@@ -254,4 +254,4 @@ def summarize_collective(
                     "concerns": [],
                     "error": str(e)
                 }
-        time.sleep(sleep_sec)
+        await asyncio.sleep(sleep_sec)

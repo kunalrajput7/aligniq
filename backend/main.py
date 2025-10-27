@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
-from pipeline import run_pipeline
+from pipeline import run_pipeline_async
 from models import PipelineResponse
 
 # Load environment variables
@@ -92,8 +92,8 @@ async def summarize_meeting(
         content = await file.read()
         vtt_content = content.decode("utf-8")
 
-        # Run pipeline
-        result = run_pipeline(
+        # Run async pipeline
+        result = await run_pipeline_async(
             vtt_content=vtt_content,
             model=model,
             segment_len_ms=segment_len_ms

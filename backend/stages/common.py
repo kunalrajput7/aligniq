@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import time
 from typing import List, Dict, Optional
-from ollama import Client, ResponseError
+import httpx
 
 
 # ---------- Defaults / Tunables ----------
@@ -44,21 +44,13 @@ def _resolve_model(model: Optional[str]) -> str:
     return model
 
 
-def _ollama_client() -> Client:
-    """Create Ollama client with API key."""
-    api_key = os.getenv("OLLAMA_API_KEY")
-    if not api_key:
-        raise RuntimeError("OLLAMA_API_KEY is not set")
-    return Client(host="https://ollama.com", headers={'Authorization': 'Bearer ' + api_key})
-
-
-def call_ollama_cloud(
+async def call_ollama_cloud_async(
     model: str,
     messages: List[Dict[str, str]],
     json_mode: bool = True
 ) -> str:
     """
-    Call Ollama Cloud API and return response content.
+    Call Ollama Cloud API asynchronously and return response content.
 
     Args:
         model: Model name
@@ -68,18 +60,35 @@ def call_ollama_cloud(
     Returns:
         Response content string
     """
-    client = _ollama_client()
+    api_key = os.getenv("OLLAMA_API_KEY")
+    if not api_key:
+        raise RuntimeError("OLLAMA_API_KEY is not set")
+
+    url = "https://ollama.com/api/chat"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": 0.1}
+    }
+
+    if json_mode:
+        payload["format"] = "json"
+
     try:
-        resp = client.chat(
-            model,
-            messages=messages,
-            stream=False,
-            format=("json" if json_mode else None),
-            options={"temperature": 0.1}
-        )
-        return resp.get("message", {}).get("content", "") or "{}"
-    except ResponseError as re:
-        msg = getattr(re, "message", None) or str(re)
-        raise RuntimeError(f"Ollama Cloud error: {msg}")
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("message", {}).get("content", "") or "{}"
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"Ollama Cloud HTTP error: {e.response.status_code} - {e.response.text}")
+    except httpx.RequestError as e:
+        raise RuntimeError(f"Ollama Cloud request error: {str(e)}")
     except Exception as e:
         raise RuntimeError(f"Ollama Cloud unexpected error: {e}")

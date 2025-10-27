@@ -3,10 +3,10 @@ Stage 0: Extract meeting details (title, date, duration, participants).
 """
 from __future__ import annotations
 import json
-import time
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from .common import _resolve_model, _fmt_local, call_ollama_cloud
+from .common import _resolve_model, _fmt_local, call_ollama_cloud_async
 
 
 # Types
@@ -79,14 +79,14 @@ def _parse_details(s: str) -> Dict[str, Any]:
     return {"title": title, "date": date}
 
 
-def infer_meeting_details(
+async def infer_meeting_details_async(
     utterances: List[Utterance],
     model: Optional[str] = None,
     max_retries: int = 3,
     sleep_sec: float = 0.8
 ) -> Dict[str, Any]:
     """
-    Infer meeting details from utterances.
+    Infer meeting details from utterances asynchronously.
 
     Returns:
         {
@@ -120,13 +120,13 @@ def infer_meeting_details(
     details = {"title": "", "date": None}
     for attempt in range(1, max_retries + 1):
         try:
-            content = call_ollama_cloud(model, messages, json_mode=True)
+            content = await call_ollama_cloud_async(model, messages, json_mode=True)
             details = _parse_details(content)
             break
         except Exception:
             if attempt == max_retries:
                 details = {"title": "", "date": None}
-        time.sleep(sleep_sec)
+        await asyncio.sleep(sleep_sec)
 
     # Use today's date if no date found
     meeting_date = details["date"] if details["date"] else datetime.now().strftime("%Y-%m-%d")

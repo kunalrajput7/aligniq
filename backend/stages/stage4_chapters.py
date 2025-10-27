@@ -3,13 +3,12 @@ Stage 4: Create chapters by clustering similar topics.
 """
 from __future__ import annotations
 import json
-import time
+import asyncio
 import math
 import re
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from .common import _resolve_model, _truncate, CHAPTERS_MAX_CHARS, call_ollama_cloud
+from .common import _resolve_model, _truncate, CHAPTERS_MAX_CHARS, call_ollama_cloud_async
 
 
 # --- Lightweight tokenizer & stopwords ---
@@ -263,27 +262,27 @@ def _parse_json_chapter(s: str) -> Dict[str, Any]:
     }
 
 
-def _summarize_chapter(
+async def _summarize_chapter_async(
     cluster_segments: List[Dict[str, Any]],
     model: str,
     max_retries: int = 3,
     sleep_sec: float = 0.8
 ) -> Dict[str, Any]:
-    """Generate title and summary for a chapter."""
+    """Generate title and summary for a chapter asynchronously."""
     bundle = _bundle_for_chapter(cluster_segments)
     messages = _build_messages_chapter(bundle)
 
     for attempt in range(1, max_retries + 1):
         try:
-            content = call_ollama_cloud(model, messages, json_mode=True)
+            content = await call_ollama_cloud_async(model, messages, json_mode=True)
             return _parse_json_chapter(content)
         except Exception as e:
             if attempt == max_retries:
                 return {"title": "Chapter", "summary": "", "error": str(e)}
-        time.sleep(sleep_sec)
+        await asyncio.sleep(sleep_sec)
 
 
-def _summarize_chapter_with_metadata(
+async def _summarize_chapter_with_metadata_async(
     ci: int,
     idxs: List[int],
     segment_summaries: List[Dict[str, Any]],
@@ -292,7 +291,7 @@ def _summarize_chapter_with_metadata(
     sleep_sec: float
 ) -> Dict[str, Any]:
     """
-    Generate chapter summary with metadata (helper for parallel processing).
+    Generate chapter summary with metadata asynchronously (helper for parallel processing).
 
     Args:
         ci: Chapter index
@@ -308,7 +307,7 @@ def _summarize_chapter_with_metadata(
     cluster_segments = [segment_summaries[i] for i in idxs]
     seg_ids = [s.get("segment_id", "") for s in cluster_segments]
 
-    chapter_meta = _summarize_chapter(
+    chapter_meta = await _summarize_chapter_async(
         cluster_segments,
         model,
         max_retries=max_retries,
@@ -323,17 +322,16 @@ def _summarize_chapter_with_metadata(
     }
 
 
-def build_chapters(
+async def build_chapters_async(
     segment_summaries: List[Dict[str, Any]],
     model: Optional[str] = None,
     similarity_threshold: float = 0.28,
     min_chapter_size: int = 1,
     max_retries: int = 3,
-    sleep_sec: float = 0.8,
-    max_workers: int = 5
+    sleep_sec: float = 0.8
 ) -> List[Dict[str, Any]]:
     """
-    Build chapters by clustering similar topics using parallel processing.
+    Build chapters by clustering similar topics using asyncio for parallel processing.
 
     Args:
         segment_summaries: List of segment summary dicts
@@ -342,7 +340,6 @@ def build_chapters(
         min_chapter_size: Minimum segments per chapter
         max_retries: Max retry attempts
         sleep_sec: Sleep between retries
-        max_workers: Maximum number of parallel workers (default: 5)
 
     Returns:
         List of chapter dicts with chapter_id, segment_ids, title, summary (in order)
@@ -362,36 +359,32 @@ def build_chapters(
     if not clusters:
         return []
 
-    # Generate chapter summaries in parallel
-    results: Dict[int, Dict[str, Any]] = {}
+    # Generate chapter summaries in parallel using asyncio
+    tasks = [
+        _summarize_chapter_with_metadata_async(
+            ci, idxs, segment_summaries, model, max_retries, sleep_sec
+        )
+        for ci, idxs in enumerate(clusters)
+    ]
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all chapter summarization tasks
-        future_to_index = {
-            executor.submit(
-                _summarize_chapter_with_metadata,
-                ci, idxs, segment_summaries, model, max_retries, sleep_sec
-            ): ci
-            for ci, idxs in enumerate(clusters)
-        }
+    # Execute all tasks concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Collect results as they complete
-        for future in as_completed(future_to_index):
-            ci = future_to_index[future]
-            try:
-                result = future.result()
-                results[ci] = result
-            except Exception as e:
-                # Fallback error result
-                cluster_segments = [segment_summaries[i] for i in clusters[ci]]
-                seg_ids = [s.get("segment_id", "") for s in cluster_segments]
-                results[ci] = {
-                    "chapter_id": f"chap-{ci:03d}",
-                    "segment_ids": seg_ids,
-                    "title": f"Chapter {ci+1}",
-                    "summary": "",
-                    "error": str(e)
-                }
+    # Handle any exceptions that occurred
+    processed_results = []
+    for ci, result in enumerate(results):
+        if isinstance(result, Exception):
+            # If an exception occurred, return error result
+            cluster_segments = [segment_summaries[i] for i in clusters[ci]]
+            seg_ids = [s.get("segment_id", "") for s in cluster_segments]
+            processed_results.append({
+                "chapter_id": f"chap-{ci:03d}",
+                "segment_ids": seg_ids,
+                "title": f"Chapter {ci+1}",
+                "summary": "",
+                "error": str(result)
+            })
+        else:
+            processed_results.append(result)
 
-    # Return chapters in original order
-    return [results[i] for i in range(len(clusters))]
+    return processed_results

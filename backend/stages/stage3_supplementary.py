@@ -3,9 +3,9 @@ Stage 3: Extract supplementary information (who did what, thinking hats).
 """
 from __future__ import annotations
 import json
-import time
+import asyncio
 from typing import List, Dict, Any, Optional
-from .common import _resolve_model, _truncate, ITEMS_MAX_CHARS, call_ollama_cloud
+from .common import _resolve_model, _truncate, ITEMS_MAX_CHARS, call_ollama_cloud_async
 
 
 SUPPLEMENTARY_PROMPT = """You are an expert meeting analyst extracting supplementary meeting insights.
@@ -173,14 +173,14 @@ def _parse_json_supplementary(s: str) -> Dict[str, Any]:
     }
 
 
-def extract_supplementary(
+async def extract_supplementary_async(
     segment_summaries: List[Dict[str, Any]],
     model: Optional[str] = None,
     max_retries: int = 3,
     sleep_sec: float = 0.8,
 ) -> Dict[str, Any]:
     """
-    Extract supplementary information from segment summaries.
+    Extract supplementary information from segment summaries asynchronously.
 
     Args:
         segment_summaries: List of segment summary dicts
@@ -203,7 +203,7 @@ def extract_supplementary(
 
     for attempt in range(1, max_retries + 1):
         try:
-            content = call_ollama_cloud(model, messages, json_mode=True)
+            content = await call_ollama_cloud_async(model, messages, json_mode=True)
             return _parse_json_supplementary(content)
         except Exception as e:
             if attempt == max_retries:
@@ -212,4 +212,4 @@ def extract_supplementary(
                     "hats": [],
                     "error": str(e)
                 }
-        time.sleep(sleep_sec)
+        await asyncio.sleep(sleep_sec)

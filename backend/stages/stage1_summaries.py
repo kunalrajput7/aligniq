@@ -3,10 +3,9 @@ Stage 1: Summarize individual segments with key points.
 """
 from __future__ import annotations
 import json
-import time
+import asyncio
 from typing import List, Dict, Any, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from .common import _resolve_model, _truncate, MAX_CHARS, call_ollama_cloud
+from .common import _resolve_model, _truncate, MAX_CHARS, call_ollama_cloud_async
 
 
 # Types
@@ -93,14 +92,14 @@ def _parse_json_stage1(s: str) -> Dict[str, Any]:
     }
 
 
-def _summarize_single_segment(
+async def _summarize_single_segment_async(
     seg: Segment,
     model: str,
     max_retries: int,
     sleep_sec: float
 ) -> Dict[str, Any]:
     """
-    Summarize a single segment (helper for parallel processing).
+    Summarize a single segment asynchronously (helper for parallel processing).
 
     Args:
         seg: Segment dict with 'text' field
@@ -125,7 +124,7 @@ def _summarize_single_segment(
 
     for attempt in range(1, max_retries + 1):
         try:
-            content = call_ollama_cloud(model, messages, json_mode=True)
+            content = await call_ollama_cloud_async(model, messages, json_mode=True)
             result = _parse_json_stage1(content)
             if not result.get("segment_id"):
                 result["segment_id"] = seg["id"]
@@ -138,25 +137,23 @@ def _summarize_single_segment(
                     "key_points": {},
                     "error": str(e)
                 }
-            time.sleep(sleep_sec)
+            await asyncio.sleep(sleep_sec)
 
 
-def summarize_segments(
+async def summarize_segments_async(
     segments: List[Segment],
     model: Optional[str] = None,
     max_retries: int = 3,
-    sleep_sec: float = 0.8,
-    max_workers: int = 10
+    sleep_sec: float = 0.8
 ) -> List[Dict[str, Any]]:
     """
-    Summarize each segment individually using parallel processing.
+    Summarize each segment individually using asyncio for parallel processing.
 
     Args:
         segments: List of segment dicts with 'text' field
         model: Model name (optional)
         max_retries: Max retry attempts
         sleep_sec: Sleep between retries
-        max_workers: Maximum number of parallel workers (default: 10)
 
     Returns:
         List of dicts with segment_id, summary, key_points (in original order)
@@ -166,30 +163,28 @@ def summarize_segments(
     if not segments:
         return []
 
-    # Use ThreadPoolExecutor for parallel API calls
-    results: Dict[int, Dict[str, Any]] = {}
+    # Create tasks for all segments
+    tasks = [
+        _summarize_single_segment_async(seg, model, max_retries, sleep_sec)
+        for seg in segments
+    ]
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        future_to_index = {
-            executor.submit(_summarize_single_segment, seg, model, max_retries, sleep_sec): idx
-            for idx, seg in enumerate(segments)
-        }
+    # Execute all tasks concurrently using asyncio.gather()
+    # This will run all API calls in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Collect results as they complete
-        for future in as_completed(future_to_index):
-            idx = future_to_index[future]
-            try:
-                result = future.result()
-                results[idx] = result
-            except Exception as e:
-                # Fallback error result
-                results[idx] = {
-                    "segment_id": segments[idx]["id"],
-                    "summary": "",
-                    "key_points": {},
-                    "error": str(e)
-                }
+    # Handle any exceptions that occurred
+    processed_results = []
+    for idx, result in enumerate(results):
+        if isinstance(result, Exception):
+            # If an exception occurred, return error result
+            processed_results.append({
+                "segment_id": segments[idx]["id"],
+                "summary": "",
+                "key_points": {},
+                "error": str(result)
+            })
+        else:
+            processed_results.append(result)
 
-    # Return results in original order
-    return [results[i] for i in range(len(segments))]
+    return processed_results

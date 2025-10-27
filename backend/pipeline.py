@@ -1,26 +1,26 @@
 """
-Pipeline orchestrator: Runs all stages with parallel execution where possible.
+Pipeline orchestrator: Runs all stages with parallel execution where possible using asyncio.
 """
 from __future__ import annotations
+import asyncio
 from typing import Dict, Any, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.vtt_parser import parse_vtt
 from stages.segmentation import segment_utterances
-from stages.stage0_meeting_details import infer_meeting_details
-from stages.stage1_summaries import summarize_segments
-from stages.stage2_collective import summarize_collective
-from stages.stage3_supplementary import extract_supplementary
-from stages.stage4_chapters import build_chapters
+from stages.stage0_meeting_details import infer_meeting_details_async
+from stages.stage1_summaries import summarize_segments_async
+from stages.stage2_collective import summarize_collective_async
+from stages.stage3_supplementary import extract_supplementary_async
+from stages.stage4_chapters import build_chapters_async
 
 
-def run_pipeline(
+async def run_pipeline_async(
     vtt_content: str,
     model: Optional[str] = None,
     segment_len_ms: int = 600_000,  # 10 minutes
 ) -> Dict[str, Any]:
     """
-    Run the complete meeting summarization pipeline with parallel execution.
+    Run the complete meeting summarization pipeline with async parallel execution.
 
     Execution flow:
     1. Parse VTT and segment utterances (fast, no LLM)
@@ -85,25 +85,20 @@ def run_pipeline(
         include_mapping=False
     )
 
-    # Run Stage 0 (meeting details) and Stage 1 (segment summaries) in parallel
+    # Run Stage 0 (meeting details) and Stage 1 (segment summaries) in parallel using asyncio.gather()
     # They are independent and can run concurrently
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        future_stage0 = executor.submit(infer_meeting_details, utterances, model)
-        future_stage1 = executor.submit(summarize_segments, segments, model)
+    meeting_details, segment_summaries = await asyncio.gather(
+        infer_meeting_details_async(utterances, model),
+        summarize_segments_async(segments, model)
+    )
 
-        meeting_details = future_stage0.result()
-        segment_summaries = future_stage1.result()
-
-    # After Stage 1 completes, run Stages 2, 3, 4 in parallel
+    # After Stage 1 completes, run Stages 2, 3, 4 in parallel using asyncio.gather()
     # All three depend on segment_summaries but are independent of each other
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        future_stage2 = executor.submit(summarize_collective, segment_summaries, model)
-        future_stage3 = executor.submit(extract_supplementary, segment_summaries, model)
-        future_stage4 = executor.submit(build_chapters, segment_summaries, model)
-
-        collective_summary = future_stage2.result()
-        supplementary = future_stage3.result()
-        chapters = future_stage4.result()
+    collective_summary, supplementary, chapters = await asyncio.gather(
+        summarize_collective_async(segment_summaries, model),
+        extract_supplementary_async(segment_summaries, model),
+        build_chapters_async(segment_summaries, model)
+    )
 
     return {
         "meeting_details": meeting_details,
