@@ -27,9 +27,9 @@ const sections = [
 export function MeetingDashboard({ data }: MeetingDashboardProps) {
   const [activeSection, setActiveSection] = useState('overview');
 
-  // Safeguard for backward compatibility
-  const supplementary = data.supplementary || { who_did_what: [], hats: [] };
-  const collectiveSummary = data.collective_summary || {
+  // Enhanced safeguards for backward compatibility and undefined handling
+  const supplementary = data?.supplementary || { who_did_what: [], hats: [] };
+  const collectiveSummary = data?.collective_summary || {
     narrative_summary: "",
     decisions: [],
     action_items: [],
@@ -37,12 +37,18 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
     blockers: [],
     concerns: []
   };
+  const meetingDetails = data?.meeting_details || {
+    title: "Meeting",
+    date: "",
+    duration_minutes: 0,
+    participants: []
+  };
 
   return (
     <div className="container mx-auto py-8">
       {/* Meeting Header */}
       <div className="mb-8">
-        <MeetingHeader details={data.meeting_details} />
+        <MeetingHeader details={meetingDetails} />
       </div>
 
       {/* 3-Column Layout */}
@@ -83,7 +89,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
                 <CardContent>
                   <div className="prose prose-sm max-w-none dark:prose-invert">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {collectiveSummary.narrative_summary}
+                      {collectiveSummary?.narrative_summary || "No summary available"}
                     </ReactMarkdown>
                   </div>
                 </CardContent>
@@ -91,23 +97,23 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
 
               {/* Mentions Counter */}
               <MentionsCounter
-                whoDidWhat={supplementary.who_did_what}
-                participants={data.meeting_details.participants}
+                whoDidWhat={supplementary?.who_did_what || []}
+                participants={meetingDetails?.participants || []}
               />
 
               {/* Deadlines - Full Width Row */}
-              <DeadlinesCard tasks={collectiveSummary.action_items} />
+              <DeadlinesCard tasks={collectiveSummary?.action_items || []} />
 
               {/* Achievements, Blockers */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <AchievementsList achievements={collectiveSummary.achievements} />
-                <BlockersList blockers={collectiveSummary.blockers} />
+                <AchievementsList achievements={collectiveSummary?.achievements || []} />
+                <BlockersList blockers={collectiveSummary?.blockers || []} />
               </div>
 
               {/* Hats System - Full Width Row */}
               <HatSystem
-                hats={supplementary.hats}
-                participants={data.meeting_details.participants}
+                hats={supplementary?.hats || []}
+                participants={meetingDetails?.participants || []}
               />
             </div>
           )}
@@ -115,7 +121,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
           {/* Chapters Section */}
           {activeSection === 'chapters' && (
             <div className="space-y-6">
-              <ChaptersList chapters={data.chapters} />
+              <ChaptersList chapters={data?.chapters || []} />
             </div>
           )}
         </main>
@@ -123,7 +129,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
         {/* Right Sidebar - To-Dos (Fixed) */}
         <aside className="w-80 flex-shrink-0">
           <div className="sticky top-8">
-            <DeadlinesList tasks={collectiveSummary.action_items} />
+            <DeadlinesList tasks={collectiveSummary?.action_items || []} />
           </div>
         </aside>
       </div>
