@@ -8,6 +8,7 @@ import math
 import re
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .common import _resolve_model, _truncate, CHAPTERS_MAX_CHARS, call_ollama_cloud
 
 
@@ -282,16 +283,57 @@ def _summarize_chapter(
         time.sleep(sleep_sec)
 
 
+def _summarize_chapter_with_metadata(
+    ci: int,
+    idxs: List[int],
+    segment_summaries: List[Dict[str, Any]],
+    model: str,
+    max_retries: int,
+    sleep_sec: float
+) -> Dict[str, Any]:
+    """
+    Generate chapter summary with metadata (helper for parallel processing).
+
+    Args:
+        ci: Chapter index
+        idxs: Indices of segments in this chapter
+        segment_summaries: All segment summaries
+        model: Model name
+        max_retries: Max retry attempts
+        sleep_sec: Sleep between retries
+
+    Returns:
+        Chapter dict with chapter_id, segment_ids, title, summary
+    """
+    cluster_segments = [segment_summaries[i] for i in idxs]
+    seg_ids = [s.get("segment_id", "") for s in cluster_segments]
+
+    chapter_meta = _summarize_chapter(
+        cluster_segments,
+        model,
+        max_retries=max_retries,
+        sleep_sec=sleep_sec
+    )
+
+    return {
+        "chapter_id": f"chap-{ci:03d}",
+        "segment_ids": seg_ids,
+        "title": chapter_meta.get("title", f"Chapter {ci+1}").strip() or f"Chapter {ci+1}",
+        "summary": chapter_meta.get("summary", "").strip(),
+    }
+
+
 def build_chapters(
     segment_summaries: List[Dict[str, Any]],
     model: Optional[str] = None,
     similarity_threshold: float = 0.28,
     min_chapter_size: int = 1,
     max_retries: int = 3,
-    sleep_sec: float = 0.8
+    sleep_sec: float = 0.8,
+    max_workers: int = 5
 ) -> List[Dict[str, Any]]:
     """
-    Build chapters by clustering similar topics.
+    Build chapters by clustering similar topics using parallel processing.
 
     Args:
         segment_summaries: List of segment summary dicts
@@ -300,40 +342,56 @@ def build_chapters(
         min_chapter_size: Minimum segments per chapter
         max_retries: Max retry attempts
         sleep_sec: Sleep between retries
+        max_workers: Maximum number of parallel workers (default: 5)
 
     Returns:
-        List of chapter dicts with chapter_id, segment_ids, title, summary
+        List of chapter dicts with chapter_id, segment_ids, title, summary (in order)
     """
     if not segment_summaries:
         return []
 
     model = _resolve_model(model)
 
-    # Cluster segments
+    # Cluster segments (this is fast, no LLM calls)
     clusters = _cluster_segments(
         segment_summaries,
         similarity_threshold=similarity_threshold,
         min_chapter_size=min_chapter_size
     )
 
-    # Generate chapter summaries
-    chapters: List[Dict[str, Any]] = []
-    for ci, idxs in enumerate(clusters):
-        cluster_segments = [segment_summaries[i] for i in idxs]
-        seg_ids = [s.get("segment_id", "") for s in cluster_segments]
+    if not clusters:
+        return []
 
-        chapter_meta = _summarize_chapter(
-            cluster_segments,
-            model,
-            max_retries=max_retries,
-            sleep_sec=sleep_sec
-        )
+    # Generate chapter summaries in parallel
+    results: Dict[int, Dict[str, Any]] = {}
 
-        chapters.append({
-            "chapter_id": f"chap-{ci:03d}",
-            "segment_ids": seg_ids,
-            "title": chapter_meta.get("title", f"Chapter {ci+1}").strip() or f"Chapter {ci+1}",
-            "summary": chapter_meta.get("summary", "").strip(),
-        })
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all chapter summarization tasks
+        future_to_index = {
+            executor.submit(
+                _summarize_chapter_with_metadata,
+                ci, idxs, segment_summaries, model, max_retries, sleep_sec
+            ): ci
+            for ci, idxs in enumerate(clusters)
+        }
 
-    return chapters
+        # Collect results as they complete
+        for future in as_completed(future_to_index):
+            ci = future_to_index[future]
+            try:
+                result = future.result()
+                results[ci] = result
+            except Exception as e:
+                # Fallback error result
+                cluster_segments = [segment_summaries[i] for i in clusters[ci]]
+                seg_ids = [s.get("segment_id", "") for s in cluster_segments]
+                results[ci] = {
+                    "chapter_id": f"chap-{ci:03d}",
+                    "segment_ids": seg_ids,
+                    "title": f"Chapter {ci+1}",
+                    "summary": "",
+                    "error": str(e)
+                }
+
+    # Return chapters in original order
+    return [results[i] for i in range(len(clusters))]

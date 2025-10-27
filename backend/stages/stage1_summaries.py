@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .common import _resolve_model, _truncate, MAX_CHARS, call_ollama_cloud
 
 
@@ -92,57 +93,103 @@ def _parse_json_stage1(s: str) -> Dict[str, Any]:
     }
 
 
+def _summarize_single_segment(
+    seg: Segment,
+    model: str,
+    max_retries: int,
+    sleep_sec: float
+) -> Dict[str, Any]:
+    """
+    Summarize a single segment (helper for parallel processing).
+
+    Args:
+        seg: Segment dict with 'text' field
+        model: Model name
+        max_retries: Max retry attempts
+        sleep_sec: Sleep between retries
+
+    Returns:
+        Dict with segment_id, summary, key_points
+    """
+    raw_text = str(seg.get("text") or "").strip()
+    if not raw_text:
+        return {
+            "segment_id": seg["id"],
+            "summary": "",
+            "key_points": {}
+        }
+
+    # Truncate if needed
+    segment_text = _truncate(raw_text, MAX_CHARS)
+    messages = _build_messages_stage1(seg["id"], segment_text)
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            content = call_ollama_cloud(model, messages, json_mode=True)
+            result = _parse_json_stage1(content)
+            if not result.get("segment_id"):
+                result["segment_id"] = seg["id"]
+            return result
+        except Exception as e:
+            if attempt == max_retries:
+                return {
+                    "segment_id": seg["id"],
+                    "summary": "",
+                    "key_points": {},
+                    "error": str(e)
+                }
+            time.sleep(sleep_sec)
+
+
 def summarize_segments(
     segments: List[Segment],
     model: Optional[str] = None,
     max_retries: int = 3,
-    sleep_sec: float = 0.8
+    sleep_sec: float = 0.8,
+    max_workers: int = 10
 ) -> List[Dict[str, Any]]:
     """
-    Summarize each segment individually.
+    Summarize each segment individually using parallel processing.
 
     Args:
         segments: List of segment dicts with 'text' field
         model: Model name (optional)
         max_retries: Max retry attempts
         sleep_sec: Sleep between retries
+        max_workers: Maximum number of parallel workers (default: 10)
 
     Returns:
-        List of dicts with segment_id, summary, key_points
+        List of dicts with segment_id, summary, key_points (in original order)
     """
     model = _resolve_model(model)
-    out: List[Dict[str, Any]] = []
 
-    for seg in segments:
-        raw_text = str(seg.get("text") or "").strip()
-        if not raw_text:
-            out.append({
-                "segment_id": seg["id"],
-                "summary": "",
-                "key_points": {}
-            })
-            continue
+    if not segments:
+        return []
 
-        # Truncate if needed
-        segment_text = _truncate(raw_text, MAX_CHARS)
-        messages = _build_messages_stage1(seg["id"], segment_text)
+    # Use ThreadPoolExecutor for parallel API calls
+    results: Dict[int, Dict[str, Any]] = {}
 
-        for attempt in range(1, max_retries + 1):
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_index = {
+            executor.submit(_summarize_single_segment, seg, model, max_retries, sleep_sec): idx
+            for idx, seg in enumerate(segments)
+        }
+
+        # Collect results as they complete
+        for future in as_completed(future_to_index):
+            idx = future_to_index[future]
             try:
-                content = call_ollama_cloud(model, messages, json_mode=True)
-                result = _parse_json_stage1(content)
-                if not result.get("segment_id"):
-                    result["segment_id"] = seg["id"]
-                out.append(result)
-                break
+                result = future.result()
+                results[idx] = result
             except Exception as e:
-                if attempt == max_retries:
-                    out.append({
-                        "segment_id": seg["id"],
-                        "summary": "",
-                        "key_points": {},
-                        "error": str(e)
-                    })
-                time.sleep(sleep_sec)
+                # Fallback error result
+                results[idx] = {
+                    "segment_id": segments[idx]["id"],
+                    "summary": "",
+                    "key_points": {},
+                    "error": str(e)
+                }
 
-    return out
+    # Return results in original order
+    return [results[i] for i in range(len(segments))]
