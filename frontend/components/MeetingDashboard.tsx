@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { PipelineResponse } from '@/types/api';
 import { MeetingHeader } from './dashboard/MeetingHeader';
 import { ChaptersList } from './dashboard/ChaptersList';
+import { HatSystem } from './dashboard/HatSystem';
 import { AchievementsList } from './dashboard/AchievementsList';
 import { BlockersList } from './dashboard/BlockersList';
 import { DeadlinesList } from './dashboard/DeadlinesList';
@@ -113,6 +114,12 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
                 <AchievementsList achievements={collectiveSummary?.achievements || []} />
                 <BlockersList blockers={collectiveSummary?.blockers || []} />
               </div>
+
+              {/* Hats System - Full Width Row */}
+              <HatSystem
+                hats={data?.hats || []}
+                participants={meetingDetails?.participants || []}
+              />
             </div>
           )}
 
