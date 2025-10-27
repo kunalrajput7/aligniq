@@ -35,32 +35,58 @@ Schema (exact keys):
   ]
 }
 
-NARRATIVE SUMMARY STRUCTURE & GUIDELINES:
+NARRATIVE SUMMARY STRUCTURE & FORMATTING:
 
-1. OPENING CONTEXT (1-2 paragraphs):
-   - What was the meeting about and what were the main goals?
-   - Who were the key participants and their roles (if mentioned)?
-   - Set the stage for the discussion
+**CRITICAL**: Use Markdown formatting with bold section titles and organized content.
+**CRITICAL**: Focus ONLY on the main topics - skip minor issues like connection problems, audio issues, or trivial digressions.
+**CRITICAL**: Be concise but comprehensive - cover the key meeting topics in depth.
 
-2. MAIN DISCUSSION POINTS (organized thematically):
-   - Group related topics together, even if discussed across different segments
-   - For each major topic, include: what was discussed, who contributed, what was decided
-   - Preserve the logical flow and evolution of ideas
-   - Include important technical details, numbers, dates, and specific commitments
-   - Highlight any disagreements, concerns, or alternative viewpoints raised
+Format the narrative_summary as follows:
 
-3. DECISIONS & ACTION ITEMS:
-   - Clearly state what decisions were made and by whom
-   - List action items with owners and deadlines (if mentioned)
-   - Note any pending decisions or follow-ups needed
+**Meeting Overview**
+- 2-3 sentences covering: What was this meeting about? What were the primary goals or objectives?
+- Skip unnecessary details like connection issues, technical setup, or small talk.
 
-4. CONCERNS & BLOCKERS:
-   - Surface any risks, blockers, or challenges discussed
-   - Include proposed solutions or mitigation strategies
+**Key Discussion Topics**
+Break this into subsections with **Bold Topic Titles** (use ## for major topics in markdown):
 
-5. OUTCOMES & NEXT STEPS:
-   - Summarize what was accomplished in the meeting
-   - State clear next steps and expectations
+## [Topic Name 1]
+- What was discussed about this topic
+- Key points, technical details, numbers, dates
+- Who contributed or led the discussion
+- Any decisions or conclusions reached
+
+## [Topic Name 2]
+- What was discussed about this topic
+- Technical details and specifics
+- Contributors and their perspectives
+- Outcomes or next steps
+
+(Continue for all major topics - typically 2-5 main topics per meeting)
+
+**Decisions Made**
+- List key decisions with decision-makers (if mentioned)
+- Include context: why the decision was made
+- Note any conditions or dependencies
+
+**Concerns & Challenges**
+- Surface any risks, blockers, or challenges discussed
+- Include proposed solutions or mitigation strategies
+- Note unresolved concerns requiring follow-up
+
+**Next Steps**
+- Clear action items and immediate next steps
+- Timelines or deadlines mentioned
+- Expected outcomes or deliverables
+
+**FORMATTING RULES**:
+1. Use **Bold** for section headers and key terms
+2. Use ## for major topic subsections
+3. Use bullet points (-) for lists and sub-points
+4. Keep paragraphs short (2-4 sentences max)
+5. Group related points together
+6. Skip trivial details (connection issues, "can you hear me", technical setup, etc.)
+7. Focus on SUBSTANCE: what decisions were made, what was discussed, what problems were identified, what solutions were proposed
 
 STRUCTURED EXTRACTION GUIDELINES:
 
