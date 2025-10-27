@@ -1,14 +1,16 @@
-import { Achievement } from '@/types/api';
+import { AchievementItem } from '@/types/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Trophy } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { getConfidenceColor, getConfidenceBadge } from '@/lib/utils';
 
 interface AchievementsListProps {
-  achievements: Achievement[];
+  achievements: AchievementItem[];
 }
 
 export function AchievementsList({ achievements }: AchievementsListProps) {
+  const achievementsList = achievements || [];
+
   return (
     <Card>
       <CardHeader>
@@ -18,13 +20,13 @@ export function AchievementsList({ achievements }: AchievementsListProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {achievements.length === 0 ? (
+        {achievementsList.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             No achievements recorded
           </p>
         ) : (
           <div className="space-y-3">
-            {achievements.map((achievement, idx) => (
+            {achievementsList.map((achievement, idx) => (
               <div key={idx} className="p-3 border rounded-lg space-y-2 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 space-y-1">

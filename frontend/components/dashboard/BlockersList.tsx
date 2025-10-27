@@ -1,14 +1,16 @@
-import { Blocker } from '@/types/api';
+import { BlockerItem } from '@/types/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AlertTriangle } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { getConfidenceColor, getConfidenceBadge } from '@/lib/utils';
 
 interface BlockersListProps {
-  blockers: Blocker[];
+  blockers: BlockerItem[];
 }
 
 export function BlockersList({ blockers }: BlockersListProps) {
+  const blockersList = blockers || [];
+
   return (
     <Card>
       <CardHeader>
@@ -18,13 +20,13 @@ export function BlockersList({ blockers }: BlockersListProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {blockers.length === 0 ? (
+        {blockersList.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             No blockers identified
           </p>
         ) : (
           <div className="space-y-3">
-            {blockers.map((blocker, idx) => (
+            {blockersList.map((blocker, idx) => (
               <div key={idx} className="p-3 border rounded-lg space-y-2 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 space-y-1">

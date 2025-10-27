@@ -10,7 +10,7 @@ from stages.segmentation import segment_utterances
 from stages.stage0_meeting_details import infer_meeting_details
 from stages.stage1_summaries import summarize_segments
 from stages.stage2_collective import summarize_collective
-from stages.stage3_items import extract_items
+from stages.stage3_supplementary import extract_supplementary
 from stages.stage4_chapters import build_chapters
 
 
@@ -38,8 +38,18 @@ def run_pipeline(
             "meeting_details": {...},
             "segments": [...],
             "segment_summaries": [...],
-            "collective_summary": {...},
-            "items": {...},
+            "collective_summary": {
+                "narrative_summary": "...",
+                "decisions": [...],
+                "action_items": [...],
+                "achievements": [...],
+                "blockers": [...],
+                "concerns": [...]
+            },
+            "supplementary": {
+                "who_did_what": [...],
+                "hats": [...]
+            },
             "chapters": [...]
         }
     """
@@ -51,8 +61,18 @@ def run_pipeline(
             "meeting_details": {},
             "segments": [],
             "segment_summaries": [],
-            "collective_summary": {},
-            "items": {},
+            "collective_summary": {
+                "narrative_summary": "",
+                "decisions": [],
+                "action_items": [],
+                "achievements": [],
+                "blockers": [],
+                "concerns": []
+            },
+            "supplementary": {
+                "who_did_what": [],
+                "hats": []
+            },
             "chapters": []
         }
 
@@ -78,11 +98,11 @@ def run_pipeline(
     # All three depend on segment_summaries but are independent of each other
     with ThreadPoolExecutor(max_workers=3) as executor:
         future_stage2 = executor.submit(summarize_collective, segment_summaries, model)
-        future_stage3 = executor.submit(extract_items, segment_summaries, model)
+        future_stage3 = executor.submit(extract_supplementary, segment_summaries, model)
         future_stage4 = executor.submit(build_chapters, segment_summaries, model)
 
         collective_summary = future_stage2.result()
-        items = future_stage3.result()
+        supplementary = future_stage3.result()
         chapters = future_stage4.result()
 
     return {
@@ -90,6 +110,6 @@ def run_pipeline(
         "segments": segments,
         "segment_summaries": segment_summaries,
         "collective_summary": collective_summary,
-        "items": items,
+        "supplementary": supplementary,
         "chapters": chapters
     }

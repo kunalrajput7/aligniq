@@ -14,15 +14,60 @@ export interface SegmentSummary {
   key_points: Record<string, string>;
 }
 
-export interface CollectiveSummary {
-  collective_summary: string;
-}
-
 export interface Evidence {
   t: string;
   quote: string;
 }
 
+// Collective Summary Types
+export interface DecisionItem {
+  decision: string;
+  owner: string;
+  deadline: string;
+  impact: string;
+  confidence: number;
+}
+
+export interface ActionItem {
+  task: string;
+  owner: string;
+  deadline: string;
+  status: string;
+  confidence: number;
+}
+
+export interface AchievementItem {
+  achievement: string;
+  member: string;
+  confidence: number;
+  evidence: Evidence[];
+}
+
+export interface BlockerItem {
+  blocker: string;
+  member: string;
+  owner: string;
+  confidence: number;
+  evidence: Evidence[];
+}
+
+export interface Concern {
+  concern: string;
+  raised_by: string;
+  mitigation: string;
+  confidence: number;
+}
+
+export interface CollectiveSummary {
+  narrative_summary: string;
+  decisions: DecisionItem[];
+  action_items: ActionItem[];
+  achievements: AchievementItem[];
+  blockers: BlockerItem[];
+  concerns: Concern[];
+}
+
+// Supplementary Types
 export interface WhoDidWhat {
   actor: string;
   what: string;
@@ -31,6 +76,37 @@ export interface WhoDidWhat {
   confidence: number;
 }
 
+export interface Hat {
+  speaker: string;
+  hat: 'white' | 'red' | 'black' | 'yellow' | 'green' | 'blue';
+  t: string;
+  evidence: string;
+  confidence?: number;
+}
+
+export interface Supplementary {
+  who_did_what: WhoDidWhat[];
+  hats: Hat[];
+}
+
+// Chapter Types
+export interface Chapter {
+  chapter_id: string;
+  segment_ids: string[];
+  title: string;
+  summary: string;
+}
+
+// Pipeline Response
+export interface PipelineResponse {
+  meeting_details: MeetingDetails;
+  segment_summaries: SegmentSummary[];
+  collective_summary: CollectiveSummary;
+  supplementary: Supplementary;
+  chapters: Chapter[];
+}
+
+// Legacy types for backward compatibility
 export interface Task {
   task: string;
   owner: string | null;
@@ -49,13 +125,6 @@ export interface Decision {
   confidence: number;
 }
 
-export interface Hat {
-  speaker: string;
-  hat: 'white' | 'red' | 'black' | 'yellow' | 'green' | 'blue';
-  t: string;
-  evidence: string;
-}
-
 export interface Achievement {
   member: string;
   achievement: string;
@@ -69,30 +138,6 @@ export interface Blocker {
   owner: string | null;
   evidence: Evidence[];
   confidence: number;
-}
-
-export interface Items {
-  who_did_what: WhoDidWhat[];
-  tasks: Task[];
-  decisions: Decision[];
-  hats: Hat[];
-  achievements: Achievement[];
-  blockers: Blocker[];
-}
-
-export interface Chapter {
-  chapter_id: string;
-  segment_ids: string[];
-  title: string;
-  summary: string;
-}
-
-export interface PipelineResponse {
-  meeting_details: MeetingDetails;
-  segment_summaries: SegmentSummary[];
-  collective_summary: CollectiveSummary;
-  items: Items;
-  chapters: Chapter[];
 }
 
 // Hat descriptions

@@ -1,5 +1,5 @@
 """
-Stage 2: Create collective summary from all segment summaries.
+Stage 2: Create collective summary from all segment summaries with structured extraction.
 """
 from __future__ import annotations
 import json
@@ -11,16 +11,31 @@ from .common import _resolve_model, _truncate, COLLECTIVE_MAX_CHARS, call_ollama
 COLLECTIVE_PROMPT = """You are an expert meeting analyst creating an executive summary of the entire meeting.
 
 You will receive segment summaries and timeline key points from throughout the meeting.
-Your task: Synthesize these into ONE comprehensive, executive-level summary.
+Your task: Synthesize these into ONE comprehensive analysis with structured extraction.
 
 Return STRICT JSON (UTF-8), no markdown code fences.
 
 Schema (exact keys):
 {
-  "collective_summary": "<comprehensive meeting summary>"
+  "narrative_summary": "<comprehensive meeting summary>",
+  "decisions": [
+    {"decision": "...", "owner": "...", "deadline": "...", "impact": "...", "confidence": 0.0-1.0}
+  ],
+  "action_items": [
+    {"task": "...", "owner": "...", "deadline": "...", "status": "...", "confidence": 0.0-1.0}
+  ],
+  "achievements": [
+    {"achievement": "...", "member": "...", "confidence": 0.0-1.0, "evidence": [{"t": "MM:SS", "quote": "..."}]}
+  ],
+  "blockers": [
+    {"blocker": "...", "member": "...", "owner": "...", "confidence": 0.0-1.0, "evidence": [{"t": "MM:SS", "quote": "..."}]}
+  ],
+  "concerns": [
+    {"concern": "...", "raised_by": "...", "mitigation": "...", "confidence": 0.0-1.0}
+  ]
 }
 
-SUMMARY STRUCTURE & GUIDELINES:
+NARRATIVE SUMMARY STRUCTURE & GUIDELINES:
 
 1. OPENING CONTEXT (1-2 paragraphs):
    - What was the meeting about and what were the main goals?
@@ -47,6 +62,43 @@ SUMMARY STRUCTURE & GUIDELINES:
    - Summarize what was accomplished in the meeting
    - State clear next steps and expectations
 
+STRUCTURED EXTRACTION GUIDELINES:
+
+DECISIONS:
+- Extract all firm decisions made during the meeting
+- Include decision maker(s), timeline if mentioned, and impact/importance
+- Confidence: 0.9-1.0 for explicit decisions, 0.6-0.8 for implicit/inferred
+
+ACTION ITEMS (CRITICAL - BE EXTREMELY THOROUGH):
+- **Extract EVERY single task, to-do, commitment, or follow-up mentioned**
+- Look for explicit phrases like: "I'll...", "We need to...", "Someone should...", "Let's...", "Will do...", "Going to...", "Should...", "Must..."
+- Look for implicit commitments: promises to investigate, review, send, share, update, fix, implement, test, document, etc.
+- Include follow-up actions: "follow up with", "reach out to", "check on", "get back to", "circle back", "touch base"
+- Include information requests: "need to find out", "have to check", "will look into", "going to research"
+- Include scheduled activities: "will have a meeting", "need to schedule", "set up", "organize"
+- **DO NOT MISS**: Review requests, approval needs, sharing documents, sending updates, creating reports
+- Owner: The person who will do it (name if mentioned, or "TBD" if unclear)
+- Deadline: Extract any mentioned date, time reference ("by Friday", "next week", "end of month") or leave empty
+- Status: Use "pending", "in-progress", or "to-do" (default to "to-do")
+- Confidence: 0.9-1.0 for explicit assignments ("John will do X"), 0.7-0.8 for implied ("We should do X"), 0.5-0.6 for unclear ownership
+- **IMPORTANT**: It's better to include a potential action item with lower confidence than to miss it entirely
+
+ACHIEVEMENTS:
+- Extract accomplishments, wins, milestones, or positive outcomes mentioned
+- Include who achieved it and supporting evidence with timestamps
+- Only include if explicitly mentioned or clearly celebrated
+- Confidence: 0.8-1.0 for direct mentions, 0.5-0.7 for inferred
+
+BLOCKERS:
+- Extract obstacles, impediments, risks, or challenges mentioned
+- Include who raised it, who owns resolution, and evidence
+- Confidence: 0.8-1.0 for explicit blockers, 0.5-0.7 for concerns
+
+CONCERNS:
+- Extract worries, questions, or potential issues raised
+- Include who raised it and any proposed mitigation
+- Confidence: 0.8-1.0 for direct concerns, 0.5-0.7 for subtle indicators
+
 QUALITY STANDARDS:
 - Write in clear, professional language suitable for stakeholders who weren't present
 - Synthesize information intelligently - avoid simply concatenating segment summaries
@@ -55,6 +107,19 @@ QUALITY STANDARDS:
 - Use proper paragraphs and structure with section headings where helpful
 - Be comprehensive but avoid unnecessary repetition
 - Focus on "what matters" - decisions, commitments, problems, and solutions
+- For structured fields: only include items with confidence >= 0.5
+- If no items found for a category, return empty array []
+
+**CRITICAL PRIORITY - ACTION ITEMS EXTRACTION**:
+Your PRIMARY GOAL is to extract ALL action items comprehensively. Read through the entire meeting transcript MULTIPLE TIMES if needed to catch:
+1. Direct assignments and commitments
+2. Follow-up promises and pending work
+3. Information gathering requests
+4. Scheduled future activities
+5. Review and approval needs
+6. Any mention of future work or next steps
+
+Missing action items can lead to tasks falling through the cracks. Be thorough and err on the side of inclusion.
 
 INPUT:
 <<<MEETING_BUNDLE>>>
@@ -104,7 +169,16 @@ def _parse_json_collective(s: str) -> Dict[str, Any]:
         obj = json.loads(s)
     except Exception:
         obj = {}
-    return {"collective_summary": str(obj.get("collective_summary", "")).strip()}
+
+    # Return structured object with defaults
+    return {
+        "narrative_summary": str(obj.get("narrative_summary", "")).strip(),
+        "decisions": obj.get("decisions", []),
+        "action_items": obj.get("action_items", []),
+        "achievements": obj.get("achievements", []),
+        "blockers": obj.get("blockers", []),
+        "concerns": obj.get("concerns", [])
+    }
 
 
 def summarize_collective(
@@ -114,7 +188,7 @@ def summarize_collective(
     sleep_sec: float = 0.8,
 ) -> Dict[str, Any]:
     """
-    Create collective summary from segment summaries.
+    Create collective summary from segment summaries with structured extraction.
 
     Args:
         segment_summaries: List of segment summary dicts
@@ -123,11 +197,18 @@ def summarize_collective(
         sleep_sec: Sleep between retries
 
     Returns:
-        Dict with collective_summary
+        Dict with narrative_summary, decisions, action_items, achievements, blockers, concerns
     """
     model = _resolve_model(model)
     if not segment_summaries:
-        return {"collective_summary": ""}
+        return {
+            "narrative_summary": "",
+            "decisions": [],
+            "action_items": [],
+            "achievements": [],
+            "blockers": [],
+            "concerns": []
+        }
 
     bundle = _bundle_segments_for_collective(segment_summaries)
     messages = _build_messages_collective(bundle)
@@ -138,5 +219,13 @@ def summarize_collective(
             return _parse_json_collective(content)
         except Exception as e:
             if attempt == max_retries:
-                return {"collective_summary": "", "error": str(e)}
+                return {
+                    "narrative_summary": "",
+                    "decisions": [],
+                    "action_items": [],
+                    "achievements": [],
+                    "blockers": [],
+                    "concerns": [],
+                    "error": str(e)
+                }
         time.sleep(sleep_sec)
