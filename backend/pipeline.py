@@ -12,6 +12,7 @@ from stages.stage1_summaries import summarize_segments_async
 from stages.stage2_collective import summarize_collective_async
 from stages.stage3_supplementary import extract_hats_async
 from stages.stage4_chapters import build_chapters_async
+from stages.stage5_mindmap import build_mindmap_async
 
 
 async def run_pipeline_async(
@@ -26,6 +27,7 @@ async def run_pipeline_async(
     1. Parse VTT and segment utterances (fast, no LLM)
     2. Stage 0 & Stage 1 run in parallel (independent)
     3. After Stage 1, Stages 2, 3, 4 run in parallel (all depend on Stage 1)
+    4. After Stages 2 & 4, Stage 5 runs (depends on collective_summary and chapters)
 
     Args:
         vtt_content: VTT file content as string
@@ -45,7 +47,12 @@ async def run_pipeline_async(
                 "blockers": [...]
             },
             "hats": [...],
-            "chapters": [...]
+            "chapters": [...],
+            "mindmap": {
+                "center_node": {...},
+                "nodes": [...],
+                "edges": [...]
+            }
         }
     """
     # Parse VTT
@@ -63,7 +70,12 @@ async def run_pipeline_async(
                 "blockers": []
             },
             "hats": [],
-            "chapters": []
+            "chapters": [],
+            "mindmap": {
+                "center_node": {"id": "root", "label": "Meeting", "type": "root"},
+                "nodes": [],
+                "edges": []
+            }
         }
 
     # Segment utterances (fast, no LLM)
@@ -90,11 +102,20 @@ async def run_pipeline_async(
         build_chapters_async(segment_summaries, model)
     )
 
+    # After Stages 2 & 4 complete, run Stage 5 (mindmap generation)
+    # Stage 5 depends on collective_summary and chapters
+    mindmap = await build_mindmap_async(
+        chapters=chapters,
+        collective_summary=collective_summary,
+        model=model
+    )
+
     return {
         "meeting_details": meeting_details,
         "segments": segments,
         "segment_summaries": segment_summaries,
         "collective_summary": collective_summary,
         "hats": hats_data.get("hats", []),
-        "chapters": chapters
+        "chapters": chapters,
+        "mindmap": mindmap
     }

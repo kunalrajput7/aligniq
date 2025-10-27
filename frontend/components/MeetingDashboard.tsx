@@ -11,7 +11,8 @@ import { AchievementsList } from './dashboard/AchievementsList';
 import { BlockersList } from './dashboard/BlockersList';
 import { DeadlinesList } from './dashboard/DeadlinesList';
 import { DeadlinesCard } from './dashboard/DeadlinesCard';
-import { LayoutDashboard, BookOpen } from 'lucide-react';
+import { MindmapCanvas } from './dashboard/MindmapCanvas';
+import { LayoutDashboard, BookOpen, Network } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
 interface MeetingDashboardProps {
@@ -21,6 +22,7 @@ interface MeetingDashboardProps {
 const sections = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'chapters', label: 'Chapters', icon: BookOpen },
+  { id: 'mindmap', label: 'Mindmap', icon: Network },
 ];
 
 export function MeetingDashboard({ data }: MeetingDashboardProps) {
@@ -127,6 +129,20 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
           {activeSection === 'chapters' && (
             <div className="space-y-6">
               <ChaptersList chapters={data?.chapters || []} />
+            </div>
+          )}
+
+          {/* Mindmap Section */}
+          {activeSection === 'mindmap' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Meeting Mindmap</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <MindmapCanvas mindmap={data?.mindmap || { center_node: { id: 'root', label: 'Meeting', type: 'root' }, nodes: [], edges: [] }} />
+                </CardContent>
+              </Card>
             </div>
           )}
         </main>

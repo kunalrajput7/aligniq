@@ -67,6 +67,35 @@ export interface Chapter {
   summary: string;
 }
 
+// Mindmap Types
+export interface MindmapNode {
+  id: string;
+  label: string;
+  type: 'topic' | 'decision' | 'action' | 'achievement' | 'blocker' | 'concern';
+  parent_id: string;
+  description: string;
+  timestamp: string | null;
+  confidence: number;
+}
+
+export interface MindmapEdge {
+  from: string;
+  to: string;
+  type: 'hierarchy' | 'causes' | 'leads_to' | 'relates_to';
+}
+
+export interface MindmapCenterNode {
+  id: string;
+  label: string;
+  type: 'root';
+}
+
+export interface Mindmap {
+  center_node: MindmapCenterNode;
+  nodes: MindmapNode[];
+  edges: MindmapEdge[];
+}
+
 // Pipeline Response
 export interface PipelineResponse {
   meeting_details: MeetingDetails;
@@ -74,6 +103,7 @@ export interface PipelineResponse {
   collective_summary: CollectiveSummary;
   hats: Hat[];
   chapters: Chapter[];
+  mindmap: Mindmap;
 }
 
 // Hat descriptions for UI
