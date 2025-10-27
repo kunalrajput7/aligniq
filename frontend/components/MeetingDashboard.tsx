@@ -87,7 +87,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
                   <CardTitle>Meeting Summary</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <div className="prose prose-slate max-w-none dark:prose-invert prose-headings:font-bold prose-h2:text-xl prose-h2:mt-6 prose-h2:mb-3 prose-h3:text-lg prose-h3:mt-4 prose-h3:mb-2 prose-p:text-base prose-p:leading-relaxed prose-ul:my-3 prose-li:my-1 prose-strong:font-semibold prose-strong:text-foreground prose-em:italic">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {collectiveSummary?.narrative_summary || "No summary available"}
                     </ReactMarkdown>
