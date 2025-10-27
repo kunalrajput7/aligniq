@@ -10,7 +10,6 @@ from stages.segmentation import segment_utterances
 from stages.stage0_meeting_details import infer_meeting_details_async
 from stages.stage1_summaries import summarize_segments_async
 from stages.stage2_collective import summarize_collective_async
-from stages.stage3_supplementary import extract_supplementary_async
 from stages.stage4_chapters import build_chapters_async
 
 
@@ -40,15 +39,9 @@ async def run_pipeline_async(
             "segment_summaries": [...],
             "collective_summary": {
                 "narrative_summary": "...",
-                "decisions": [...],
                 "action_items": [...],
                 "achievements": [...],
-                "blockers": [...],
-                "concerns": [...]
-            },
-            "supplementary": {
-                "who_did_what": [...],
-                "hats": [...]
+                "blockers": [...]
             },
             "chapters": [...]
         }
@@ -63,15 +56,9 @@ async def run_pipeline_async(
             "segment_summaries": [],
             "collective_summary": {
                 "narrative_summary": "",
-                "decisions": [],
                 "action_items": [],
                 "achievements": [],
-                "blockers": [],
-                "concerns": []
-            },
-            "supplementary": {
-                "who_did_what": [],
-                "hats": []
+                "blockers": []
             },
             "chapters": []
         }
@@ -92,11 +79,10 @@ async def run_pipeline_async(
         summarize_segments_async(segments, model)
     )
 
-    # After Stage 1 completes, run Stages 2, 3, 4 in parallel using asyncio.gather()
-    # All three depend on segment_summaries but are independent of each other
-    collective_summary, supplementary, chapters = await asyncio.gather(
+    # After Stage 1 completes, run Stages 2 and 4 in parallel using asyncio.gather()
+    # Both depend on segment_summaries but are independent of each other
+    collective_summary, chapters = await asyncio.gather(
         summarize_collective_async(segment_summaries, model),
-        extract_supplementary_async(segment_summaries, model),
         build_chapters_async(segment_summaries, model)
     )
 
@@ -105,6 +91,5 @@ async def run_pipeline_async(
         "segments": segments,
         "segment_summaries": segment_summaries,
         "collective_summary": collective_summary,
-        "supplementary": supplementary,
         "chapters": chapters
     }

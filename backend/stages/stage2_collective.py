@@ -18,9 +18,6 @@ Return STRICT JSON (UTF-8), no markdown code fences.
 Schema (exact keys):
 {
   "narrative_summary": "<comprehensive meeting summary>",
-  "decisions": [
-    {"decision": "...", "owner": "...", "deadline": "...", "impact": "...", "confidence": 0.0-1.0}
-  ],
   "action_items": [
     {"task": "...", "owner": "...", "deadline": "...", "status": "...", "confidence": 0.0-1.0}
   ],
@@ -29,9 +26,6 @@ Schema (exact keys):
   ],
   "blockers": [
     {"blocker": "...", "member": "...", "owner": "...", "confidence": 0.0-1.0, "evidence": [{"t": "MM:SS", "quote": "..."}]}
-  ],
-  "concerns": [
-    {"concern": "...", "raised_by": "...", "mitigation": "...", "confidence": 0.0-1.0}
   ]
 }
 
@@ -90,11 +84,6 @@ Break this into subsections with **Bold Topic Titles** (use ## for major topics 
 
 STRUCTURED EXTRACTION GUIDELINES:
 
-DECISIONS:
-- Extract all firm decisions made during the meeting
-- Include decision maker(s), timeline if mentioned, and impact/importance
-- Confidence: 0.9-1.0 for explicit decisions, 0.6-0.8 for implicit/inferred
-
 ACTION ITEMS (CRITICAL - BE EXTREMELY THOROUGH):
 - **Extract EVERY single task, to-do, commitment, or follow-up mentioned**
 - Look for explicit phrases like: "I'll...", "We need to...", "Someone should...", "Let's...", "Will do...", "Going to...", "Should...", "Must..."
@@ -119,11 +108,6 @@ BLOCKERS:
 - Extract obstacles, impediments, risks, or challenges mentioned
 - Include who raised it, who owns resolution, and evidence
 - Confidence: 0.8-1.0 for explicit blockers, 0.5-0.7 for concerns
-
-CONCERNS:
-- Extract worries, questions, or potential issues raised
-- Include who raised it and any proposed mitigation
-- Confidence: 0.8-1.0 for direct concerns, 0.5-0.7 for subtle indicators
 
 QUALITY STANDARDS:
 - Write in clear, professional language suitable for stakeholders who weren't present
@@ -199,11 +183,9 @@ def _parse_json_collective(s: str) -> Dict[str, Any]:
     # Return structured object with defaults
     return {
         "narrative_summary": str(obj.get("narrative_summary", "")).strip(),
-        "decisions": obj.get("decisions", []),
         "action_items": obj.get("action_items", []),
         "achievements": obj.get("achievements", []),
-        "blockers": obj.get("blockers", []),
-        "concerns": obj.get("concerns", [])
+        "blockers": obj.get("blockers", [])
     }
 
 
@@ -223,17 +205,15 @@ async def summarize_collective_async(
         sleep_sec: Sleep between retries
 
     Returns:
-        Dict with narrative_summary, decisions, action_items, achievements, blockers, concerns
+        Dict with narrative_summary, action_items, achievements, blockers
     """
     model = _resolve_model(model)
     if not segment_summaries:
         return {
             "narrative_summary": "",
-            "decisions": [],
             "action_items": [],
             "achievements": [],
-            "blockers": [],
-            "concerns": []
+            "blockers": []
         }
 
     bundle = _bundle_segments_for_collective(segment_summaries)
@@ -247,11 +227,9 @@ async def summarize_collective_async(
             if attempt == max_retries:
                 return {
                     "narrative_summary": "",
-                    "decisions": [],
                     "action_items": [],
                     "achievements": [],
                     "blockers": [],
-                    "concerns": [],
                     "error": str(e)
                 }
         await asyncio.sleep(sleep_sec)

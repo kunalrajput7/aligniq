@@ -6,8 +6,6 @@ import remarkGfm from 'remark-gfm';
 import { PipelineResponse } from '@/types/api';
 import { MeetingHeader } from './dashboard/MeetingHeader';
 import { ChaptersList } from './dashboard/ChaptersList';
-import { HatSystem } from './dashboard/HatSystem';
-import { MentionsCounter } from './dashboard/MentionsCounter';
 import { AchievementsList } from './dashboard/AchievementsList';
 import { BlockersList } from './dashboard/BlockersList';
 import { DeadlinesList } from './dashboard/DeadlinesList';
@@ -28,14 +26,11 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
   const [activeSection, setActiveSection] = useState('overview');
 
   // Enhanced safeguards for backward compatibility and undefined handling
-  const supplementary = data?.supplementary || { who_did_what: [], hats: [] };
   const collectiveSummary = data?.collective_summary || {
     narrative_summary: "",
-    decisions: [],
     action_items: [],
     achievements: [],
-    blockers: [],
-    concerns: []
+    blockers: []
   };
   const meetingDetails = data?.meeting_details || {
     title: "Meeting",
@@ -110,12 +105,6 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
                 </CardContent>
               </Card>
 
-              {/* Mentions Counter */}
-              <MentionsCounter
-                whoDidWhat={supplementary?.who_did_what || []}
-                participants={meetingDetails?.participants || []}
-              />
-
               {/* Deadlines - Full Width Row */}
               <DeadlinesCard tasks={collectiveSummary?.action_items || []} />
 
@@ -124,12 +113,6 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
                 <AchievementsList achievements={collectiveSummary?.achievements || []} />
                 <BlockersList blockers={collectiveSummary?.blockers || []} />
               </div>
-
-              {/* Hats System - Full Width Row */}
-              <HatSystem
-                hats={supplementary?.hats || []}
-                participants={meetingDetails?.participants || []}
-              />
             </div>
           )}
 
