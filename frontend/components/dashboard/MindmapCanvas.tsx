@@ -3,7 +3,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import Tree from 'react-d3-tree';
 import { Mindmap, MindmapNode } from '@/types/api';
-import { Download, Network } from 'lucide-react';
+import { Download, ChevronDown, Network } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 interface MindmapCanvasProps {
   mindmap: Mindmap;
@@ -44,8 +45,10 @@ const NODE_TYPE_LABELS: Record<string, string> = {
 };
 
 export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
-  const [selectedNode, setSelectedNode] = useState<TreeNodeDatum | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 700 });
+  const [hoveredNode, setHoveredNode] = useState<TreeNodeDatum | null>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Convert flat mindmap structure to hierarchical tree
   const convertToTree = useCallback((): TreeNodeDatum => {
@@ -57,9 +60,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       };
     }
 
-    // Build a map of node id to children
     const childrenMap: Record<string, MindmapNode[]> = {};
-
     mindmap.nodes.forEach(node => {
       if (!childrenMap[node.parent_id]) {
         childrenMap[node.parent_id] = [];
@@ -67,10 +68,8 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       childrenMap[node.parent_id].push(node);
     });
 
-    // Recursive function to build tree
     const buildNode = (nodeId: string, label: string, type: string, description?: string, timestamp?: string | null): TreeNodeDatum => {
       const children = childrenMap[nodeId] || [];
-
       return {
         name: label,
         attributes: {
@@ -85,7 +84,6 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       };
     };
 
-    // Start from root
     return buildNode(
       mindmap.center_node.id,
       mindmap.center_node.label,
@@ -94,8 +92,6 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
   }, [mindmap]);
 
   const treeData = useMemo(() => convertToTree(), [convertToTree]);
-
-  // Use ref to access tree component directly
   const treeContainerRef = React.useRef<HTMLDivElement>(null);
 
   // Update dimensions on mount and resize
@@ -112,14 +108,13 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  // Custom node rendering with rounded rectangles
+  // Custom node rendering with hover support
   const renderCustomNode = useCallback(({ nodeDatum, toggleNode }: any) => {
     const nodeType = nodeDatum.attributes?.nodeType || 'topic';
     const color = NODE_COLORS[nodeType] || NODE_COLORS.topic;
     const isRoot = nodeType === 'root';
     const hasChildren = nodeDatum.children && nodeDatum.children.length > 0;
 
-    // Calculate text width for responsive box
     const padding = 20;
     const charWidth = isRoot ? 10 : 8;
     const textWidth = Math.max(150, Math.min(300, nodeDatum.name.length * charWidth + padding * 2));
@@ -128,7 +123,10 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     const boxHeight = textHeight;
 
     return (
-      <g>
+      <g
+        onMouseEnter={() => setHoveredNode(nodeDatum)}
+        onMouseLeave={() => setHoveredNode(null)}
+      >
         {/* Responsive rounded rectangle background */}
         <rect
           x={-boxWidth / 2}
@@ -149,7 +147,6 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
             if (hasChildren) {
               toggleNode();
             }
-            setSelectedNode(nodeDatum);
           }}
         />
 
@@ -168,7 +165,6 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
             userSelect: 'none'
           }}
         >
-          {/* Word wrap for long labels */}
           {(() => {
             const maxCharsPerLine = isRoot ? 20 : 25;
             const words = nodeDatum.name.split(' ');
@@ -187,7 +183,6 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
               lines.push(currentLine.trim());
             }
 
-            // Limit to 2 lines
             const displayLines = lines.slice(0, 2);
             const lineHeight = 16;
             const startY = -(displayLines.length - 1) * (lineHeight / 2);
@@ -255,8 +250,17 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     );
   }, []);
 
+  // Track mouse position for tooltip
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
   // Export as PNG
-  const handleExport = () => {
+  const handleExportPNG = () => {
     const svg = document.querySelector('.mindmap-container svg');
     if (!svg) return;
 
@@ -278,9 +282,51 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     };
 
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    setShowExportMenu(false);
   };
 
-  // Calculate container dimensions
+  // Export as JSON
+  const handleExportJSON = () => {
+    const jsonData = JSON.stringify(mindmap, null, 2);
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const downloadLink = document.createElement('a');
+    downloadLink.download = 'meeting-mindmap.json';
+    downloadLink.href = url;
+    downloadLink.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+  };
+
+  // Export as PDF
+  const handleExportPDF = () => {
+    const svg = document.querySelector('.mindmap-container svg');
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save('meeting-mindmap.pdf');
+    };
+
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    setShowExportMenu(false);
+  };
+
   const containerStyles = {
     width: '100%',
     height: '700px',
@@ -304,24 +350,68 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Controls Bar */}
-      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-700">💡 Tip: Click nodes to expand/collapse. Scroll to zoom, drag to pan.</span>
-        </div>
+    <div className="space-y-0">
+      {/* Header with Download Button */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">Meeting Mindmap</h2>
 
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-        >
-          <Download className="h-4 w-4" />
-          <span className="text-sm font-medium">Export PNG</span>
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span className="text-sm font-medium">Download</span>
+            <ChevronDown className="h-4 w-4" />
+          </button>
+
+          {/* Dropdown Menu */}
+          {showExportMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+              <button
+                onClick={handleExportJSON}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg transition-colors"
+              >
+                Download as JSON
+              </button>
+              <button
+                onClick={handleExportPNG}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Download as PNG
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg transition-colors"
+              >
+                Download as PDF
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mindmap Container */}
       <div style={containerStyles} className="mindmap-container" ref={treeContainerRef}>
+        {/* Legend - Top Right Corner */}
+        <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm p-3 rounded-lg border border-gray-200 shadow-sm z-10 max-w-xs">
+          <h4 className="text-xs font-semibold text-gray-700 mb-2">Node Types</h4>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(NODE_COLORS).map(([type, color]) => (
+              <div key={type} className="flex items-center gap-1.5">
+                <div
+                  className="w-3 h-3 rounded shadow-sm flex-shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="text-xs text-gray-600 font-medium capitalize truncate">
+                  {NODE_TYPE_LABELS[type]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tree Visualization */}
         <Tree
           data={treeData}
           orientation="horizontal"
@@ -349,79 +439,39 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
             }
           }}
         />
+
+        {/* Hover Tooltip */}
+        {hoveredNode && hoveredNode.attributes?.description && (
+          <div
+            className="fixed z-50 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-xl max-w-sm pointer-events-none"
+            style={{
+              left: mousePos.x + 15,
+              top: mousePos.y + 15
+            }}
+          >
+            <div className="font-semibold text-sm mb-1">{hoveredNode.name}</div>
+            <div className="text-xs text-gray-300 mb-2 capitalize">
+              {NODE_TYPE_LABELS[hoveredNode.attributes?.nodeType || 'topic']}
+            </div>
+            <div className="text-xs text-gray-200 leading-relaxed">
+              {hoveredNode.attributes.description}
+            </div>
+            {hoveredNode.attributes?.timestamp && (
+              <div className="text-xs text-gray-400 mt-2">
+                📍 {hoveredNode.attributes.timestamp}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Selected Node Details Panel */}
-      {selectedNode && (
-        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-lg border border-indigo-200 shadow-sm">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: NODE_COLORS[selectedNode.attributes?.nodeType || 'topic'] }}
-              />
-              <h3 className="text-lg font-semibold text-gray-900">{selectedNode.name}</h3>
-            </div>
-            <button
-              onClick={() => setSelectedNode(null)}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <span className="text-xl">&times;</span>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-600">Type:</span>
-              <span className="px-2 py-1 bg-white rounded text-sm font-medium capitalize">
-                {NODE_TYPE_LABELS[selectedNode.attributes?.nodeType || 'topic']}
-              </span>
-            </div>
-
-            {selectedNode.attributes?.description && (
-              <div>
-                <span className="text-sm font-medium text-gray-600 block mb-1">Description:</span>
-                <p className="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded">
-                  {selectedNode.attributes.description}
-                </p>
-              </div>
-            )}
-
-            {selectedNode.attributes?.timestamp && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-600">Timestamp:</span>
-                <span className="px-2 py-1 bg-white rounded text-sm font-mono">
-                  {selectedNode.attributes.timestamp}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Close dropdown when clicking outside */}
+      {showExportMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowExportMenu(false)}
+        />
       )}
-
-      {/* Legend */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">Node Types</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {Object.entries(NODE_COLORS).map(([type, color]) => (
-            <div key={type} className="flex items-center gap-2">
-              <div
-                className="w-4 h-4 rounded shadow-sm"
-                style={{ backgroundColor: color }}
-              />
-              <span className="text-xs text-gray-600 font-medium capitalize">
-                {NODE_TYPE_LABELS[type]}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-gray-300">
-          <p className="text-xs text-gray-500">
-            💡 <strong>Tip:</strong> Click any node to expand/collapse its children. Drag to pan, scroll to zoom. Click nodes to view full details below.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

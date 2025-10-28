@@ -134,25 +134,20 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
 
           {/* Mindmap Section */}
           {activeSection === 'mindmap' && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Meeting Mindmap</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <MindmapCanvas mindmap={data?.mindmap || { center_node: { id: 'root', label: 'Meeting', type: 'root' }, nodes: [], edges: [] }} />
-                </CardContent>
-              </Card>
+            <div>
+              <MindmapCanvas mindmap={data?.mindmap || { center_node: { id: 'root', label: 'Meeting', type: 'root' }, nodes: [], edges: [] }} />
             </div>
           )}
         </main>
 
-        {/* Right Sidebar - To-Dos (Fixed) */}
-        <aside className="w-80 flex-shrink-0">
-          <div className="sticky top-8">
-            <DeadlinesList tasks={collectiveSummary?.action_items || []} />
-          </div>
-        </aside>
+        {/* Right Sidebar - To-Dos (Hidden on Mindmap) */}
+        {activeSection !== 'mindmap' && (
+          <aside className="w-80 flex-shrink-0">
+            <div className="sticky top-8">
+              <DeadlinesList tasks={collectiveSummary?.action_items || []} />
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );
