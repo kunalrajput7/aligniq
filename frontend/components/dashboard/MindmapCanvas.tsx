@@ -1,298 +1,368 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Mindmap, MindmapNode, MindmapEdge } from '@/types/api';
+import React, { useState, useCallback, useMemo } from 'react';
+import Tree from 'react-d3-tree';
+import { Mindmap, MindmapNode } from '@/types/api';
+import { Download, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 interface MindmapCanvasProps {
   mindmap: Mindmap;
 }
 
-interface CanvasNode {
-  id: string;
-  label: string;
-  type: string;
-  x: number;
-  y: number;
-  radius: number;
-  color: string;
-  description?: string;
-  timestamp?: string | null;
-}
-
-interface CanvasEdge {
-  from: string;
-  to: string;
-  type: string;
+interface TreeNodeDatum {
+  name: string;
+  attributes?: {
+    nodeType: string;
+    description?: string;
+    timestamp?: string | null;
+    id: string;
+  };
+  children?: TreeNodeDatum[];
 }
 
 const NODE_COLORS: Record<string, string> = {
-  root: '#6366f1',      // Indigo
-  topic: '#8b5cf6',     // Purple
-  decision: '#3b82f6',  // Blue
-  action: '#10b981',    // Green
-  achievement: '#f59e0b', // Amber
-  blocker: '#ef4444',   // Red
-  concern: '#f97316'    // Orange
+  root: '#4f46e5',      // Indigo-600
+  topic: '#7c3aed',     // Violet-600
+  decision: '#2563eb',  // Blue-600
+  action: '#059669',    // Emerald-600
+  achievement: '#d97706', // Amber-600
+  blocker: '#dc2626',   // Red-600
+  concern: '#ea580c'    // Orange-600
 };
 
-const NODE_SIZES: Record<string, number> = {
-  root: 60,
-  topic: 45,
-  decision: 35,
-  action: 30,
-  achievement: 30,
-  blocker: 35,
-  concern: 30
+const NODE_TYPE_LABELS: Record<string, string> = {
+  root: 'Meeting',
+  topic: 'Topic',
+  decision: 'Decision',
+  action: 'Action Item',
+  achievement: 'Achievement',
+  blocker: 'Blocker',
+  concern: 'Concern'
 };
 
 export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [hoveredNode, setHoveredNode] = useState<CanvasNode | null>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(0.8);
+  const [selectedNode, setSelectedNode] = useState<TreeNodeDatum | null>(null);
 
-  // Convert mindmap data to canvas nodes with positions
-  const buildCanvasData = () => {
-    const nodes: CanvasNode[] = [];
-    const edges: CanvasEdge[] = mindmap.edges;
+  // Convert flat mindmap structure to hierarchical tree
+  const convertToTree = useCallback((): TreeNodeDatum => {
+    if (!mindmap || !mindmap.center_node) {
+      return {
+        name: 'No Data',
+        attributes: { nodeType: 'root', id: 'root' },
+        children: []
+      };
+    }
 
-    // Add center node at the center
-    const centerX = dimensions.width / 2;
-    const centerY = dimensions.height / 2;
+    // Build a map of node id to children
+    const childrenMap: Record<string, MindmapNode[]> = {};
 
-    nodes.push({
-      id: mindmap.center_node.id,
-      label: mindmap.center_node.label,
-      type: mindmap.center_node.type,
-      x: centerX,
-      y: centerY,
-      radius: NODE_SIZES.root,
-      color: NODE_COLORS.root
-    });
-
-    // Group nodes by parent to calculate positions
-    const nodesByParent: Record<string, MindmapNode[]> = {};
     mindmap.nodes.forEach(node => {
-      if (!nodesByParent[node.parent_id]) {
-        nodesByParent[node.parent_id] = [];
+      if (!childrenMap[node.parent_id]) {
+        childrenMap[node.parent_id] = [];
       }
-      nodesByParent[node.parent_id].push(node);
+      childrenMap[node.parent_id].push(node);
     });
 
-    // Recursive function to position nodes in a radial layout
-    const positionNodes = (parentId: string, parentX: number, parentY: number, level: number) => {
-      const children = nodesByParent[parentId] || [];
-      if (children.length === 0) return;
+    // Recursive function to build tree
+    const buildNode = (nodeId: string, label: string, type: string, description?: string, timestamp?: string | null): TreeNodeDatum => {
+      const children = childrenMap[nodeId] || [];
 
-      const radius = 150 + (level * 80); // Distance from parent
-      const angleStep = (Math.PI * 2) / Math.max(children.length, 1);
-      const startAngle = -Math.PI / 2; // Start from top
-
-      children.forEach((child, index) => {
-        const angle = startAngle + (angleStep * index);
-        const x = parentX + Math.cos(angle) * radius;
-        const y = parentY + Math.sin(angle) * radius;
-
-        nodes.push({
-          id: child.id,
-          label: child.label,
-          type: child.type,
-          x,
-          y,
-          radius: NODE_SIZES[child.type] || 30,
-          color: NODE_COLORS[child.type] || '#9ca3af',
-          description: child.description,
-          timestamp: child.timestamp
-        });
-
-        // Recursively position children of this node
-        positionNodes(child.id, x, y, level + 1);
-      });
+      return {
+        name: label,
+        attributes: {
+          nodeType: type,
+          description: description,
+          timestamp: timestamp,
+          id: nodeId
+        },
+        children: children.map(child =>
+          buildNode(child.id, child.label, child.type, child.description, child.timestamp)
+        )
+      };
     };
 
-    // Start positioning from root
-    positionNodes(mindmap.center_node.id, centerX, centerY, 1);
+    // Start from root
+    return buildNode(
+      mindmap.center_node.id,
+      mindmap.center_node.label,
+      mindmap.center_node.type
+    );
+  }, [mindmap]);
 
-    return { nodes, edges };
+  const treeData = useMemo(() => convertToTree(), [convertToTree]);
+
+  // Custom node rendering
+  const renderCustomNode = ({ nodeDatum }: any) => {
+    const nodeType = nodeDatum.attributes?.nodeType || 'topic';
+    const color = NODE_COLORS[nodeType] || NODE_COLORS.topic;
+    const isRoot = nodeType === 'root';
+    const radius = isRoot ? 50 : 35;
+
+    return (
+      <g>
+        {/* Node circle */}
+        <circle
+          r={radius}
+          fill={color}
+          stroke="#fff"
+          strokeWidth={3}
+          style={{
+            cursor: 'pointer',
+            filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
+          }}
+          onClick={() => setSelectedNode(nodeDatum)}
+        />
+
+        {/* Node label */}
+        <text
+          fill="white"
+          strokeWidth="0"
+          x="0"
+          y="0"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{
+            fontSize: isRoot ? '14px' : '12px',
+            fontWeight: isRoot ? 'bold' : '600',
+            pointerEvents: 'none'
+          }}
+        >
+          {/* Split long labels into multiple lines */}
+          {nodeDatum.name.length > 20 ? (
+            <>
+              <tspan x="0" dy="-0.6em">
+                {nodeDatum.name.substring(0, 20)}
+              </tspan>
+              <tspan x="0" dy="1.2em">
+                {nodeDatum.name.substring(20, 40)}
+              </tspan>
+              {nodeDatum.name.length > 40 && (
+                <tspan x="0" dy="1.2em">
+                  ...
+                </tspan>
+              )}
+            </>
+          ) : (
+            nodeDatum.name
+          )}
+        </text>
+
+        {/* Type badge below node */}
+        <text
+          fill={color}
+          strokeWidth="0"
+          x="0"
+          y={radius + 20}
+          textAnchor="middle"
+          style={{
+            fontSize: '10px',
+            fontWeight: '500',
+            pointerEvents: 'none'
+          }}
+        >
+          {NODE_TYPE_LABELS[nodeType]}
+        </text>
+      </g>
+    );
   };
 
-  const { nodes, edges } = buildCanvasData();
+  // Handle zoom controls
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.2, 2));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.2, 0.3));
+  const handleResetView = () => {
+    setZoom(0.8);
+    setTranslate({ x: 0, y: 0 });
+  };
 
-  // Handle canvas resize
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: width || 800, height: height || 600 });
-      }
-    };
+  // Export as PNG
+  const handleExport = () => {
+    const svg = document.querySelector('.mindmap-container svg');
+    if (!svg) return;
 
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, []);
-
-  // Draw the mindmap
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const img = new Image();
 
-    // Clear canvas
-    ctx.clearRect(0, 0, dimensions.width, dimensions.height);
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+      const pngFile = canvas.toDataURL('image/png');
 
-    // Draw edges first (so they appear behind nodes)
-    edges.forEach(edge => {
-      const fromNode = nodes.find(n => n.id === edge.from);
-      const toNode = nodes.find(n => n.id === edge.to);
+      const downloadLink = document.createElement('a');
+      downloadLink.download = 'meeting-mindmap.png';
+      downloadLink.href = pngFile;
+      downloadLink.click();
+    };
 
-      if (fromNode && toNode) {
-        ctx.beginPath();
-        ctx.moveTo(fromNode.x, fromNode.y);
-        ctx.lineTo(toNode.x, toNode.y);
-        ctx.strokeStyle = edge.type === 'hierarchy' ? '#d1d5db' : '#9ca3af';
-        ctx.lineWidth = edge.type === 'hierarchy' ? 2 : 1.5;
-        if (edge.type !== 'hierarchy') {
-          ctx.setLineDash([5, 5]);
-        } else {
-          ctx.setLineDash([]);
-        }
-        ctx.stroke();
-      }
-    });
-
-    // Draw nodes
-    nodes.forEach(node => {
-      const isHovered = hoveredNode?.id === node.id;
-
-      // Draw node circle
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-      ctx.fillStyle = node.color;
-      ctx.fill();
-      ctx.strokeStyle = isHovered ? '#1f2937' : '#fff';
-      ctx.lineWidth = isHovered ? 3 : 2;
-      ctx.stroke();
-
-      // Draw label
-      ctx.fillStyle = node.type === 'root' ? '#fff' : '#1f2937';
-      ctx.font = node.type === 'root' ? 'bold 14px sans-serif' : '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      // Word wrap for long labels
-      const maxWidth = node.radius * 1.8;
-      const words = node.label.split(' ');
-      let line = '';
-      const lines: string[] = [];
-
-      words.forEach(word => {
-        const testLine = line + word + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && line !== '') {
-          lines.push(line);
-          line = word + ' ';
-        } else {
-          line = testLine;
-        }
-      });
-      lines.push(line);
-
-      const lineHeight = 14;
-      const startY = node.y - ((lines.length - 1) * lineHeight) / 2;
-
-      lines.forEach((textLine, i) => {
-        ctx.fillText(textLine.trim(), node.x, startY + (i * lineHeight));
-      });
-    });
-  }, [nodes, edges, dimensions, hoveredNode]);
-
-  // Handle mouse move for hover effect
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setMousePos({ x: e.clientX, y: e.clientY });
-
-    // Check if hovering over any node
-    const hoveredNode = nodes.find(node => {
-      const distance = Math.sqrt(Math.pow(node.x - x, 2) + Math.pow(node.y - y, 2));
-      return distance <= node.radius;
-    });
-
-    setHoveredNode(hoveredNode || null);
-    canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
-  const handleMouseLeave = () => {
-    setHoveredNode(null);
+  // Calculate container dimensions
+  const containerStyles = {
+    width: '100%',
+    height: '700px',
+    border: '2px solid #e5e7eb',
+    borderRadius: '12px',
+    backgroundColor: '#ffffff',
+    position: 'relative' as const,
+    overflow: 'hidden'
   };
 
   if (!mindmap || mindmap.nodes.length === 0) {
     return (
       <div className="flex items-center justify-center h-96 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-        <p className="text-gray-500">No mindmap data available</p>
+        <div className="text-center">
+          <Network className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <p className="text-gray-500 text-lg font-medium">No mindmap data available</p>
+          <p className="text-gray-400 text-sm mt-2">Process a meeting to generate the mindmap</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className="w-full bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden"
-        style={{ height: '600px' }}
-      >
-        <canvas
-          ref={canvasRef}
-          width={dimensions.width}
-          height={dimensions.height}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          className="w-full h-full"
+    <div className="space-y-4">
+      {/* Controls Bar */}
+      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-700">Controls:</span>
+          <button
+            onClick={handleZoomIn}
+            className="p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+            title="Zoom In"
+          >
+            <ZoomIn className="h-4 w-4 text-gray-700" />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+            title="Zoom Out"
+          >
+            <ZoomOut className="h-4 w-4 text-gray-700" />
+          </button>
+          <button
+            onClick={handleResetView}
+            className="p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+            title="Reset View"
+          >
+            <Maximize2 className="h-4 w-4 text-gray-700" />
+          </button>
+        </div>
+
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+        >
+          <Download className="h-4 w-4" />
+          <span className="text-sm font-medium">Export PNG</span>
+        </button>
+      </div>
+
+      {/* Mindmap Container */}
+      <div style={containerStyles} className="mindmap-container">
+        <Tree
+          data={treeData}
+          translate={{ x: translate.x || 400, y: translate.y || 50 }}
+          zoom={zoom}
+          onUpdate={(state) => {
+            setTranslate({ x: state.translate.x, y: state.translate.y });
+            setZoom(state.zoom);
+          }}
+          orientation="vertical"
+          pathFunc="step"
+          separation={{ siblings: 1.5, nonSiblings: 2 }}
+          nodeSize={{ x: 200, y: 150 }}
+          renderCustomNodeElement={renderCustomNode}
+          enableLegacyTransitions
+          transitionDuration={500}
+          depthFactor={200}
+          collapsible={true}
+          initialDepth={2}
+          zoomable={true}
+          draggable={true}
+          scaleExtent={{ min: 0.3, max: 2 }}
+          styles={{
+            links: {
+              stroke: '#94a3b8',
+              strokeWidth: 2
+            }
+          }}
         />
       </div>
 
-      {/* Tooltip for hovered node */}
-      {hoveredNode && (
-        <div
-          className="fixed z-50 bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg max-w-xs pointer-events-none"
-          style={{
-            left: mousePos.x + 15,
-            top: mousePos.y + 15
-          }}
-        >
-          <div className="font-semibold text-sm mb-1">{hoveredNode.label}</div>
-          <div className="text-xs text-gray-300 capitalize mb-1">Type: {hoveredNode.type}</div>
-          {hoveredNode.description && (
-            <div className="text-xs text-gray-200 mt-1">{hoveredNode.description}</div>
-          )}
-          {hoveredNode.timestamp && (
-            <div className="text-xs text-gray-400 mt-1">Time: {hoveredNode.timestamp}</div>
-          )}
+      {/* Selected Node Details Panel */}
+      {selectedNode && (
+        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-lg border border-indigo-200 shadow-sm">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: NODE_COLORS[selectedNode.attributes?.nodeType || 'topic'] }}
+              />
+              <h3 className="text-lg font-semibold text-gray-900">{selectedNode.name}</h3>
+            </div>
+            <button
+              onClick={() => setSelectedNode(null)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <span className="text-xl">&times;</span>
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Type:</span>
+              <span className="px-2 py-1 bg-white rounded text-sm font-medium capitalize">
+                {NODE_TYPE_LABELS[selectedNode.attributes?.nodeType || 'topic']}
+              </span>
+            </div>
+
+            {selectedNode.attributes?.description && (
+              <div>
+                <span className="text-sm font-medium text-gray-600 block mb-1">Description:</span>
+                <p className="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded">
+                  {selectedNode.attributes.description}
+                </p>
+              </div>
+            )}
+
+            {selectedNode.attributes?.timestamp && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-600">Timestamp:</span>
+                <span className="px-2 py-1 bg-white rounded text-sm font-mono">
+                  {selectedNode.attributes.timestamp}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Legend */}
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Legend</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">Node Types</h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {Object.entries(NODE_COLORS).map(([type, color]) => (
             <div key={type} className="flex items-center gap-2">
               <div
-                className="w-4 h-4 rounded-full"
+                className="w-4 h-4 rounded-full shadow-sm"
                 style={{ backgroundColor: color }}
               />
-              <span className="text-xs text-gray-600 capitalize">{type}</span>
+              <span className="text-xs text-gray-600 font-medium capitalize">
+                {NODE_TYPE_LABELS[type]}
+              </span>
             </div>
           ))}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-gray-300">
+          <p className="text-xs text-gray-500">
+            💡 <strong>Tip:</strong> Click and drag to pan, scroll to zoom, click nodes to see details, and click the collapse icon to expand/collapse branches.
+          </p>
         </div>
       </div>
     </div>

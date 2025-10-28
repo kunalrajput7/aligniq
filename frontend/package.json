@@ -27,6 +27,7 @@
     "lucide-react": "^0.303.0",
     "next": "14.0.4",
     "react": "^18.2.0",
+    "react-d3-tree": "^3.6.6",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "reactflow": "^11.10.4",
