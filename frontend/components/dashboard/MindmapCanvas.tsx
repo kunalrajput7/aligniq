@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import Tree from 'react-d3-tree';
 import { Mindmap, MindmapNode } from '@/types/api';
-import { Download, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { Download, Network } from 'lucide-react';
 
 interface MindmapCanvasProps {
   mindmap: Mindmap;
@@ -41,9 +41,8 @@ const NODE_TYPE_LABELS: Record<string, string> = {
 };
 
 export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(0.8);
   const [selectedNode, setSelectedNode] = useState<TreeNodeDatum | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 700 });
 
   // Convert flat mindmap structure to hierarchical tree
   const convertToTree = useCallback((): TreeNodeDatum => {
@@ -168,13 +167,22 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     );
   };
 
-  // Handle zoom controls
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.2, 2));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.2, 0.3));
-  const handleResetView = () => {
-    setZoom(0.8);
-    setTranslate({ x: 0, y: 0 });
-  };
+  // Use ref to access tree component directly
+  const treeContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Update dimensions on mount and resize
+  React.useEffect(() => {
+    const updateDimensions = () => {
+      if (treeContainerRef.current) {
+        const { width, height } = treeContainerRef.current.getBoundingClientRect();
+        setDimensions({ width: width || 800, height: height || 700 });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
 
   // Export as PNG
   const handleExport = () => {
@@ -229,28 +237,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       {/* Controls Bar */}
       <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-700">Controls:</span>
-          <button
-            onClick={handleZoomIn}
-            className="p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-            title="Zoom In"
-          >
-            <ZoomIn className="h-4 w-4 text-gray-700" />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-            title="Zoom Out"
-          >
-            <ZoomOut className="h-4 w-4 text-gray-700" />
-          </button>
-          <button
-            onClick={handleResetView}
-            className="p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-            title="Reset View"
-          >
-            <Maximize2 className="h-4 w-4 text-gray-700" />
-          </button>
+          <span className="text-sm font-medium text-gray-700">💡 Tip: Scroll to zoom, drag to pan, click nodes for details</span>
         </div>
 
         <button
@@ -263,17 +250,13 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       </div>
 
       {/* Mindmap Container */}
-      <div style={containerStyles} className="mindmap-container">
+      <div style={containerStyles} className="mindmap-container" ref={treeContainerRef}>
         <Tree
           data={treeData}
-          translate={{ x: translate.x || 400, y: translate.y || 50 }}
-          zoom={zoom}
-          onUpdate={(state) => {
-            setTranslate({ x: state.translate.x, y: state.translate.y });
-            setZoom(state.zoom);
-          }}
           orientation="vertical"
           pathFunc="step"
+          translate={{ x: dimensions.width / 2, y: 50 }}
+          zoom={0.8}
           separation={{ siblings: 1.5, nonSiblings: 2 }}
           nodeSize={{ x: 200, y: 150 }}
           renderCustomNodeElement={renderCustomNode}
