@@ -18,6 +18,9 @@ interface TreeNodeDatum {
     id: string;
   };
   children?: TreeNodeDatum[];
+  __rd3t?: {
+    collapsed?: boolean;
+  };
 }
 
 const NODE_COLORS: Record<string, string> = {
@@ -92,81 +95,6 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
 
   const treeData = useMemo(() => convertToTree(), [convertToTree]);
 
-  // Custom node rendering
-  const renderCustomNode = ({ nodeDatum }: any) => {
-    const nodeType = nodeDatum.attributes?.nodeType || 'topic';
-    const color = NODE_COLORS[nodeType] || NODE_COLORS.topic;
-    const isRoot = nodeType === 'root';
-    const radius = isRoot ? 50 : 35;
-
-    return (
-      <g>
-        {/* Node circle */}
-        <circle
-          r={radius}
-          fill={color}
-          stroke="#fff"
-          strokeWidth={3}
-          style={{
-            cursor: 'pointer',
-            filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
-          }}
-          onClick={() => setSelectedNode(nodeDatum)}
-        />
-
-        {/* Node label */}
-        <text
-          fill="white"
-          strokeWidth="0"
-          x="0"
-          y="0"
-          textAnchor="middle"
-          dominantBaseline="middle"
-          style={{
-            fontSize: isRoot ? '14px' : '12px',
-            fontWeight: isRoot ? 'bold' : '600',
-            pointerEvents: 'none'
-          }}
-        >
-          {/* Split long labels into multiple lines */}
-          {nodeDatum.name.length > 20 ? (
-            <>
-              <tspan x="0" dy="-0.6em">
-                {nodeDatum.name.substring(0, 20)}
-              </tspan>
-              <tspan x="0" dy="1.2em">
-                {nodeDatum.name.substring(20, 40)}
-              </tspan>
-              {nodeDatum.name.length > 40 && (
-                <tspan x="0" dy="1.2em">
-                  ...
-                </tspan>
-              )}
-            </>
-          ) : (
-            nodeDatum.name
-          )}
-        </text>
-
-        {/* Type badge below node */}
-        <text
-          fill={color}
-          strokeWidth="0"
-          x="0"
-          y={radius + 20}
-          textAnchor="middle"
-          style={{
-            fontSize: '10px',
-            fontWeight: '500',
-            pointerEvents: 'none'
-          }}
-        >
-          {NODE_TYPE_LABELS[nodeType]}
-        </text>
-      </g>
-    );
-  };
-
   // Use ref to access tree component directly
   const treeContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -182,6 +110,149 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
+
+  // Custom node rendering with rounded rectangles
+  const renderCustomNode = useCallback(({ nodeDatum, toggleNode }: any) => {
+    const nodeType = nodeDatum.attributes?.nodeType || 'topic';
+    const color = NODE_COLORS[nodeType] || NODE_COLORS.topic;
+    const isRoot = nodeType === 'root';
+    const hasChildren = nodeDatum.children && nodeDatum.children.length > 0;
+
+    // Calculate text width for responsive box
+    const padding = 20;
+    const charWidth = isRoot ? 10 : 8;
+    const textWidth = Math.max(150, Math.min(300, nodeDatum.name.length * charWidth + padding * 2));
+    const textHeight = isRoot ? 60 : 50;
+    const boxWidth = textWidth;
+    const boxHeight = textHeight;
+
+    return (
+      <g>
+        {/* Responsive rounded rectangle background */}
+        <rect
+          x={-boxWidth / 2}
+          y={-boxHeight / 2}
+          width={boxWidth}
+          height={boxHeight}
+          rx={8}
+          ry={8}
+          fill={color}
+          stroke="#fff"
+          strokeWidth={2}
+          style={{
+            cursor: hasChildren ? 'pointer' : 'default',
+            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
+            transition: 'all 0.3s ease'
+          }}
+          onClick={() => {
+            if (hasChildren) {
+              toggleNode();
+            }
+            setSelectedNode(nodeDatum);
+          }}
+        />
+
+        {/* Node label - wrapped text */}
+        <text
+          fill="white"
+          strokeWidth="0"
+          x="0"
+          y="0"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{
+            fontSize: isRoot ? '14px' : '12px',
+            fontWeight: isRoot ? 'bold' : '600',
+            pointerEvents: 'none',
+            userSelect: 'none'
+          }}
+        >
+          {/* Word wrap for long labels */}
+          {(() => {
+            const maxCharsPerLine = isRoot ? 20 : 25;
+            const words = nodeDatum.name.split(' ');
+            const lines: string[] = [];
+            let currentLine = '';
+
+            words.forEach(word => {
+              if ((currentLine + word).length > maxCharsPerLine && currentLine !== '') {
+                lines.push(currentLine.trim());
+                currentLine = word + ' ';
+              } else {
+                currentLine += word + ' ';
+              }
+            });
+            if (currentLine.trim()) {
+              lines.push(currentLine.trim());
+            }
+
+            // Limit to 2 lines
+            const displayLines = lines.slice(0, 2);
+            const lineHeight = 16;
+            const startY = -(displayLines.length - 1) * (lineHeight / 2);
+
+            return displayLines.map((line, i) => (
+              <tspan key={i} x="0" y={startY + i * lineHeight}>
+                {line.length > maxCharsPerLine ? line.substring(0, maxCharsPerLine - 3) + '...' : line}
+              </tspan>
+            ));
+          })()}
+        </text>
+
+        {/* Expand/Collapse indicator */}
+        {hasChildren && (
+          <g>
+            <circle
+              cx={boxWidth / 2 - 10}
+              cy={0}
+              r={10}
+              fill="white"
+              stroke={color}
+              strokeWidth={2}
+              style={{ cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleNode();
+              }}
+            />
+            <text
+              x={boxWidth / 2 - 10}
+              y={0}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill={color}
+              style={{
+                fontSize: '12px',
+                fontWeight: 'bold',
+                pointerEvents: 'none',
+                userSelect: 'none'
+              }}
+            >
+              {nodeDatum.__rd3t?.collapsed ? '+' : '−'}
+            </text>
+          </g>
+        )}
+
+        {/* Type badge */}
+        <text
+          fill="white"
+          fillOpacity={0.8}
+          strokeWidth="0"
+          x="0"
+          y={boxHeight / 2 + 15}
+          textAnchor="middle"
+          style={{
+            fontSize: '10px',
+            fontWeight: '500',
+            pointerEvents: 'none',
+            userSelect: 'none'
+          }}
+        >
+          {NODE_TYPE_LABELS[nodeType]}
+        </text>
+      </g>
+    );
   }, []);
 
   // Export as PNG
@@ -215,7 +286,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     height: '700px',
     border: '2px solid #e5e7eb',
     borderRadius: '12px',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fafafa',
     position: 'relative' as const,
     overflow: 'hidden'
   };
@@ -237,7 +308,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       {/* Controls Bar */}
       <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-700">💡 Tip: Scroll to zoom, drag to pan, click nodes for details</span>
+          <span className="text-sm font-medium text-gray-700">💡 Tip: Click nodes to expand/collapse. Scroll to zoom, drag to pan.</span>
         </div>
 
         <button
@@ -254,24 +325,27 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
         <Tree
           data={treeData}
           orientation="horizontal"
-          pathFunc="step"
+          pathFunc="diagonal"
           translate={{ x: 100, y: dimensions.height / 2 }}
-          zoom={0.8}
+          zoom={0.9}
           separation={{ siblings: 1.2, nonSiblings: 1.5 }}
-          nodeSize={{ x: 250, y: 150 }}
+          nodeSize={{ x: 250, y: 180 }}
           renderCustomNodeElement={renderCustomNode}
-          enableLegacyTransitions
-          transitionDuration={500}
-          depthFactor={300}
+          enableLegacyTransitions={true}
+          transitionDuration={400}
+          depthFactor={350}
           collapsible={true}
           initialDepth={1}
+          shouldCollapseNeighborNodes={false}
           zoomable={true}
           draggable={true}
           scaleExtent={{ min: 0.3, max: 2 }}
+          pathClassFunc={() => 'mindmap-link'}
           styles={{
             links: {
               stroke: '#94a3b8',
-              strokeWidth: 2
+              strokeWidth: 2.5,
+              strokeOpacity: 0.6
             }
           }}
         />
@@ -332,7 +406,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
           {Object.entries(NODE_COLORS).map(([type, color]) => (
             <div key={type} className="flex items-center gap-2">
               <div
-                className="w-4 h-4 rounded-full shadow-sm"
+                className="w-4 h-4 rounded shadow-sm"
                 style={{ backgroundColor: color }}
               />
               <span className="text-xs text-gray-600 font-medium capitalize">
