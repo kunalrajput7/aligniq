@@ -50,9 +50,9 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
       </div>
 
       {/* 3-Column Layout */}
-      <div className="flex gap-6">
+      <div className="flex gap-5">
         {/* Left Sidebar - Navigation */}
-        <aside className="w-64 flex-shrink-0">
+        <aside className="w-56 flex-shrink-0">
           <div className="sticky top-8 space-y-2">
             {sections.map((section) => {
               const Icon = section.icon;
@@ -75,10 +75,10 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
         </aside>
 
         {/* Center Content Area */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 max-w-3xl">
           {/* Overview Section */}
           {activeSection === 'overview' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Meeting Summary with Markdown */}
               <Card>
                 <CardHeader>
@@ -112,7 +112,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
               <DeadlinesCard tasks={collectiveSummary?.action_items || []} />
 
               {/* Achievements, Blockers */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <AchievementsList achievements={collectiveSummary?.achievements || []} />
                 <BlockersList blockers={collectiveSummary?.blockers || []} />
               </div>
@@ -127,7 +127,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
 
           {/* Chapters Section */}
           {activeSection === 'chapters' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <ChaptersList chapters={data?.chapters || []} />
             </div>
           )}
@@ -142,7 +142,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
 
         {/* Right Sidebar - To-Dos (Hidden on Mindmap) */}
         {activeSection !== 'mindmap' && (
-          <aside className="w-80 flex-shrink-0">
+          <aside className="w-96 flex-shrink-0">
             <div className="sticky top-8">
               <DeadlinesList tasks={collectiveSummary?.action_items || []} />
             </div>
