@@ -253,18 +253,18 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       <div style={containerStyles} className="mindmap-container" ref={treeContainerRef}>
         <Tree
           data={treeData}
-          orientation="vertical"
+          orientation="horizontal"
           pathFunc="step"
-          translate={{ x: dimensions.width / 2, y: 50 }}
+          translate={{ x: 100, y: dimensions.height / 2 }}
           zoom={0.8}
-          separation={{ siblings: 1.5, nonSiblings: 2 }}
-          nodeSize={{ x: 200, y: 150 }}
+          separation={{ siblings: 1.2, nonSiblings: 1.5 }}
+          nodeSize={{ x: 250, y: 150 }}
           renderCustomNodeElement={renderCustomNode}
           enableLegacyTransitions
           transitionDuration={500}
-          depthFactor={200}
+          depthFactor={300}
           collapsible={true}
-          initialDepth={2}
+          initialDepth={1}
           zoomable={true}
           draggable={true}
           scaleExtent={{ min: 0.3, max: 2 }}
@@ -344,7 +344,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
 
         <div className="mt-4 pt-4 border-t border-gray-300">
           <p className="text-xs text-gray-500">
-            💡 <strong>Tip:</strong> Click and drag to pan, scroll to zoom, click nodes to see details, and click the collapse icon to expand/collapse branches.
+            💡 <strong>Tip:</strong> Click any node to expand/collapse its children. Drag to pan, scroll to zoom. Click nodes to view full details below.
           </p>
         </div>
       </div>
