@@ -63,7 +63,7 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-2">
         {!data ? (
           <div className="min-h-[60vh] flex items-center justify-center">
             <div className="w-full max-w-2xl">

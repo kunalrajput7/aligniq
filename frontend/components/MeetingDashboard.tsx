@@ -12,8 +12,8 @@ import { BlockersList } from './dashboard/BlockersList';
 import { DeadlinesList } from './dashboard/DeadlinesList';
 import { DeadlinesCard } from './dashboard/DeadlinesCard';
 import { MindmapCanvas } from './dashboard/MindmapCanvas';
-import { LayoutDashboard, BookOpen, Network } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { LayoutDashboard, BookOpen, Network, FileText } from 'lucide-react';
+import { Card, CardContent } from './ui/card';
 
 interface MeetingDashboardProps {
   data: PipelineResponse;
@@ -80,33 +80,36 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
           {activeSection === 'overview' && (
             <div className="space-y-5">
               {/* Meeting Summary with Markdown */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Meeting Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-slate prose-lg max-w-none dark:prose-invert
-                    prose-headings:font-bold prose-headings:tracking-tight
-                    prose-h1:text-2xl prose-h1:mt-8 prose-h1:mb-4
-                    prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4 prose-h2:border-b prose-h2:border-border prose-h2:pb-2
-                    prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-3
-                    prose-p:text-base prose-p:leading-relaxed prose-p:my-4 prose-p:text-foreground
-                    prose-strong:font-semibold prose-strong:text-foreground
-                    prose-em:italic prose-em:text-muted-foreground
-                    prose-ul:list-disc prose-ul:my-4 prose-ul:pl-6 prose-ul:space-y-2
-                    prose-ol:list-decimal prose-ol:my-4 prose-ol:pl-6 prose-ol:space-y-2
-                    prose-li:text-base prose-li:leading-relaxed prose-li:text-foreground
-                    prose-li:marker:text-primary
-                    prose-code:text-sm prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                    prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg
-                    prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic
-                    prose-hr:border-border prose-hr:my-8">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {collectiveSummary?.narrative_summary || "No summary available"}
-                    </ReactMarkdown>
-                  </div>
-                </CardContent>
-              </Card>
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText className="h-6 w-6" />
+                  <h2 className="text-2xl font-bold">Meeting Summary</h2>
+                </div>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="prose prose-slate prose-lg max-w-none dark:prose-invert
+                      prose-headings:font-bold prose-headings:tracking-tight
+                      prose-h1:text-2xl prose-h1:mt-8 prose-h1:mb-4
+                      prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4 prose-h2:border-b prose-h2:border-border prose-h2:pb-2
+                      prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-3
+                      prose-p:text-base prose-p:leading-relaxed prose-p:my-4 prose-p:text-foreground
+                      prose-strong:font-semibold prose-strong:text-foreground
+                      prose-em:italic prose-em:text-muted-foreground
+                      prose-ul:list-disc prose-ul:my-4 prose-ul:pl-6 prose-ul:space-y-2
+                      prose-ol:list-decimal prose-ol:my-4 prose-ol:pl-6 prose-ol:space-y-2
+                      prose-li:text-base prose-li:leading-relaxed prose-li:text-foreground
+                      prose-li:marker:text-primary
+                      prose-code:text-sm prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                      prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg
+                      prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic
+                      prose-hr:border-border prose-hr:my-8">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {collectiveSummary?.narrative_summary || "No summary available"}
+                      </ReactMarkdown>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* Deadlines - Full Width Row */}
               <DeadlinesCard tasks={collectiveSummary?.action_items || []} />
