@@ -126,13 +126,23 @@ async def call_ollama_cloud_async(
             print(f"[DEBUG] Response status: {response.status_code}")
             print(f"[DEBUG] Response data keys: {data.keys()}")
 
-            message = (data.get("choices") or [{}])[0].get("message", {})
+            choices = data.get("choices") or [{}]
+            message = choices[0].get("message", {})
             content = message.get("content", "")
 
-            print(f"[DEBUG] Content length: {len(content)}")
-            print(f"[DEBUG] Content preview: {content[:200] if content else 'EMPTY'}")
+            if not content:
+                print("[ERROR] Azure AI returned empty content. Full response:")
+                try:
+                    import json as json_lib
+                    print(json_lib.dumps(data, indent=2)[:2000])
+                except Exception:
+                    print(data)
+                raise RuntimeError("Azure AI returned an empty response. Please verify the deployment and prompt.")
 
-            return content or "{}"
+            print(f"[DEBUG] Content length: {len(content)}")
+            print(f"[DEBUG] Content preview: {content[:200]}")
+
+            return content
     except httpx.HTTPStatusError as e:
         detail = e.response.text if hasattr(e.response, 'text') else str(e)
         print(f"[ERROR] Azure AI HTTP Error {e.response.status_code}: {detail}")

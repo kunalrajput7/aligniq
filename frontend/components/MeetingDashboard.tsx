@@ -45,7 +45,6 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
 
   const scrollAreaClass =
     'custom-scrollbar pr-2 h-[calc(100vh-220px)] overflow-y-auto';
-  const columnHeight = 'h-[calc(100vh-220px)]';
 
   return (
     <div className={isMindmap ? 'mx-auto w-full px-6 py-5' : 'container mx-auto py-5'}>
@@ -155,7 +154,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
         {/* Right Sidebar - To-Dos (Hidden on Mindmap) */}
         {activeSection !== 'mindmap' && (
           <aside className="w-80 flex-shrink-0">
-            <div className={`${columnHeight} flex flex-col`}>
+            <div className={`${scrollAreaClass}`}>
               <DeadlinesList tasks={collectiveSummary?.action_items || []} />
             </div>
           </aside>

@@ -15,12 +15,38 @@ interface HatSystemProps {
 export function HatSystem({ hats, participants }: HatSystemProps) {
   const [showModal, setShowModal] = useState(false);
 
+  const formatExplanation = (text: string, hatKey: Hat['hat'], participant: string) => {
+    if (!text) {
+      return `${participant} exhibited the ${HAT_DESCRIPTIONS[hatKey].name.toLowerCase()} throughout the session, contributing in line with that mindset.`;
+    }
+    const sentences = text
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(/(?<=[.!?])\s+/)
+      .filter(Boolean);
+
+    if (sentences.length >= 3) {
+      return sentences.slice(0, 3).join(' ');
+    }
+    if (sentences.length === 2) {
+      return sentences.join(' ');
+    }
+    if (sentences.length === 1) {
+      return `${sentences[0]} They reinforced this perspective consistently during the discussion.`;
+    }
+    return text;
+  };
+
   // Determine the dominant hat for each speaker
   const dominantHatByPerson = hats.reduce((acc, hat) => {
     if (!acc[hat.speaker]) {
       acc[hat.speaker] = {
         hat: hat.hat,
-        reasoning: hat.evidence || `Demonstrated ${HAT_DESCRIPTIONS[hat.hat].name} thinking`,
+        reasoning: formatExplanation(
+          hat.evidence || `Demonstrated ${HAT_DESCRIPTIONS[hat.hat].name} thinking.`,
+          hat.hat,
+          hat.speaker
+        ),
         count: 1
       };
     }
@@ -58,11 +84,14 @@ export function HatSystem({ hats, participants }: HatSystemProps) {
             {Object.entries(dominantHatByPerson).map(([speaker, { hat, reasoning }]) => {
               const hatInfo = HAT_DESCRIPTIONS[hat];
               return (
-                <div key={speaker} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                <div
+                  key={speaker}
+                  className={`flex items-start gap-3 p-4 border rounded-lg shadow-sm transition-colors ${hatInfo.legendClass}`}
+                >
                   <div className="flex-1 min-w-0 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-semibold text-sm">{speaker}</div>
-                      <Badge className={`${hatInfo.color} text-xs shrink-0`}>
+                      <Badge className={`${hatInfo.chipClass} text-xs shrink-0`}>
                         {hatInfo.name}
                       </Badge>
                     </div>
@@ -100,7 +129,10 @@ export function HatSystem({ hats, participants }: HatSystemProps) {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(HAT_DESCRIPTIONS).map(([hatKey, hatInfo]) => (
-                  <div key={hatKey} className={`p-4 rounded-lg border-2 ${hatInfo.color}`}>
+                  <div
+                    key={hatKey}
+                    className={`p-4 rounded-lg border text-sm leading-relaxed ${hatInfo.legendClass}`}
+                  >
                     <div className="font-semibold text-base mb-2">{hatInfo.name}</div>
                     <p className="text-sm opacity-90">{hatInfo.description}</p>
                   </div>

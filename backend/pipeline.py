@@ -137,6 +137,7 @@ def _normalize_action_items(items: Any) -> List[Dict[str, Any]]:
     if not isinstance(items, list):
         return normalized
 
+    seen = set()
     for item in items:
         if not isinstance(item, dict):
             continue
@@ -152,8 +153,17 @@ def _normalize_action_items(items: Any) -> List[Dict[str, Any]]:
             deadline = _clean_text(deadline_raw.get("text") or deadline_raw.get("label"))
         else:
             deadline = _clean_text(deadline_raw)
+        deadline_lower = deadline.lower()
+        if deadline_lower in {"", "none", "no deadline", "no deadline specified", "not specified", "tbd"}:
+            deadline = ""
+
         status = _clean_text(item.get("status") or item.get("state") or "pending", "pending")
         confidence = _normalize_confidence(item.get("confidence"), default=0.75)
+
+        key = (task.lower(), owner.lower(), deadline.lower())
+        if key in seen:
+            continue
+        seen.add(key)
 
         normalized.append(
             {
@@ -172,11 +182,14 @@ def _normalize_achievements(items: Any) -> List[Dict[str, Any]]:
     if not isinstance(items, list):
         return normalized
 
+    seen = set()
     for item in items:
         if not isinstance(item, dict):
             continue
         achievement = _clean_text(item.get("achievement") or item.get("summary"))
         if not achievement:
+            continue
+        if len(achievement.split()) < 3 and not item.get("evidence"):
             continue
         members = item.get("members") or item.get("member")
         if isinstance(members, list):
@@ -184,6 +197,11 @@ def _normalize_achievements(items: Any) -> List[Dict[str, Any]]:
         else:
             member = _clean_text(members)
         member = member or "Team"
+        key = achievement.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+
         normalized.append(
             {
                 "achievement": achievement,
@@ -200,11 +218,14 @@ def _normalize_blockers(items: Any) -> List[Dict[str, Any]]:
     if not isinstance(items, list):
         return normalized
 
+    seen = set()
     for item in items:
         if not isinstance(item, dict):
             continue
         blocker = _clean_text(item.get("blocker") or item.get("issue") or item.get("challenge"))
         if not blocker:
+            continue
+        if len(blocker.split()) < 3 and not item.get("evidence"):
             continue
         affected = item.get("affected_members") or item.get("members") or item.get("member")
         if isinstance(affected, list):
@@ -216,6 +237,11 @@ def _normalize_blockers(items: Any) -> List[Dict[str, Any]]:
             item.get("owner") or item.get("responsible") or item.get("assignee"),
             "Unassigned",
         )
+        key = blocker.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+
         normalized.append(
             {
                 "blocker": blocker,
@@ -239,6 +265,7 @@ def _normalize_chapters(items: Any) -> List[Dict[str, Any]]:
         chapter_id = _clean_text(item.get("chapter_id")) or f"chap-{idx:03d}"
         title = _clean_text(item.get("title"), f"Chapter {idx + 1}")
         summary = _clean_text(item.get("summary")).replace("\r\n", "\n").replace("\r", "\n")
+        summary = summary.replace("In this chapter", "").replace("This chapter", "").strip()
 
         segments = item.get("segment_ids") or item.get("segments") or []
         segment_ids: List[str] = []
@@ -296,6 +323,58 @@ def _normalize_timeline(items: Any) -> List[Dict[str, Any]]:
             }
         )
     return normalized
+
+
+HAT_NARRATIVE = {
+    "white": "shared data points, metrics, or factual updates to keep everyone grounded in evidence.",
+    "red": "voiced candid emotions and instinctive reactions, giving context to how the team was feeling.",
+    "black": "highlighted risks, gaps, and potential downsides that the team needed to prepare for.",
+    "yellow": "framed the discussion around opportunities, benefits, and positive impact to maintain momentum.",
+    "green": "generated creative alternatives and suggestions that opened up new possibilities.",
+    "blue": "facilitated the process, organizing next steps and keeping the conversation on track.",
+}
+
+
+def _build_hat_description(participant: str, hat: str, sections: Dict[str, str]) -> str:
+    hat_label = hat.capitalize()
+    focus = HAT_NARRATIVE.get(hat, "contributed meaningfully to the conversation.")
+    if focus:
+        focus = focus.strip()
+        if not focus.endswith("."):
+            focus = f"{focus}."
+        focus = focus[0].upper() + focus[1:]
+
+    dominant_text = _clean_text(sections.get(hat))
+
+    other_highlights = []
+    for color, _narrative in HAT_NARRATIVE.items():
+        if color == hat:
+            continue
+        text = _clean_text(sections.get(color))
+        if len(text.split()) > 8:
+            other_highlights.append((color, text))
+
+    sentences: List[str] = []
+    sentences.append(f"{participant} consistently embodied the {hat_label} Hat. {focus}")
+
+    if dominant_text:
+        snippet = dominant_text.strip()
+        if not snippet.endswith("."):
+            snippet += "."
+        sentences.append(snippet)
+
+    if other_highlights:
+        secondary_color, secondary_text = other_highlights[0]
+        secondary_hat = secondary_color.capitalize()
+        snippet = secondary_text.strip()
+        if not snippet.endswith("."):
+            snippet += "."
+        sentences.append(
+            f"They also showed {secondary_hat} Hat thinking at times, noting that {snippet}"
+        )
+
+    text = " ".join(sentences)
+    return " ".join(text.split())
 
 
 async def run_pipeline_async(
@@ -449,12 +528,16 @@ async def run_pipeline_async(
                 else:
                     confidence_hat = 0.6
 
+                explanation = _build_hat_description(participant, dominant_hat, sections)
+                if explanation and explanation[-1] != ".":
+                    explanation = explanation + "."
+
                 hats.append(
                     {
                         "speaker": participant,
                         "hat": dominant_hat,
                         "t": "00:00:00",
-                        "evidence": dominant_text,
+                        "evidence": explanation,
                         "confidence": round(confidence_hat, 2),
                     }
                 )
@@ -502,9 +585,12 @@ async def run_pipeline_async(
     print("\n[PIPELINE] Step 3: Building mindmap...")
     try:
         mindmap = await build_mindmap_async(
+            meeting_details=meeting_details,
+            narrative_summary=narrative_summary,
             chapters=chapters,
             collective_summary=collective_summary,
-            model=model,
+            timeline=timeline,
+            hats=hats,
         )
         print(
             "[PIPELINE] Mindmap complete. "
@@ -530,4 +616,3 @@ async def run_pipeline_async(
         "timeline": timeline,
         "mindmap": mindmap,
     }
-

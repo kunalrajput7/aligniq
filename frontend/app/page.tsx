@@ -40,21 +40,21 @@ export default function Home() {
   return (
     <main className="min-h-screen">
       {/* Header */}
-      <header className="bg-white dark:bg-slate-900 border-b shadow-sm">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+      <header className="bg-white/90 dark:bg-slate-900/80 border-b">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <Sparkles className="h-6 w-6 text-white" />
+              <div className="w-9 h-9 bg-primary/90 rounded-md flex items-center justify-center shadow-sm">
+                <Sparkles className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Meeting Summarizer</h1>
-                <p className="text-sm text-muted-foreground">AI-Powered Meeting Analysis</p>
+                <h1 className="text-lg font-semibold leading-tight">Meeting Summarizer</h1>
+                <p className="text-xs text-muted-foreground">AI-powered meeting intelligence</p>
               </div>
             </div>
             {data && (
-              <Button onClick={handleReset} variant="outline">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+              <Button onClick={handleReset} variant="outline" size="sm" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
                 New Analysis
               </Button>
             )}
@@ -86,12 +86,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="border-t bg-white dark:bg-slate-900 mt-16">
-        <div className="container mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
-          <p>Powered by Ollama Cloud (gpt-oss:120b-cloud)</p>
-        </div>
-      </footer>
     </main>
   );
 }

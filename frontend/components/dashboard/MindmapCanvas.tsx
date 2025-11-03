@@ -25,17 +25,23 @@ interface TreeNodeDatum {
 }
 
 const NODE_COLORS: Record<string, string> = {
-  root: '#4f46e5',      // Indigo-600
-  topic: '#7c3aed',     // Violet-600
-  decision: '#2563eb',  // Blue-600
-  action: '#059669',    // Emerald-600
-  achievement: '#d97706', // Amber-600
-  blocker: '#dc2626',   // Red-600
-  concern: '#ea580c'    // Orange-600
+  root: '#4f46e5',       // Indigo-600
+  theme: '#2563eb',      // Blue-600
+  chapter: '#7c3aed',    // Violet-600
+  claim: '#0ea5e9',      // Sky-500
+  topic: '#7c3aed',      // Back-compat
+  decision: '#2563eb',
+  action: '#059669',     // Emerald-600
+  achievement: '#d97706',// Amber-600
+  blocker: '#dc2626',    // Red-600
+  concern: '#ea580c'     // Orange-600
 };
 
 const NODE_TYPE_LABELS: Record<string, string> = {
   root: 'Meeting',
+  theme: 'Theme',
+  chapter: 'Chapter',
+  claim: 'Insight',
   topic: 'Topic',
   decision: 'Decision',
   action: 'Action Item',
@@ -110,8 +116,8 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
 
   // Custom node rendering with hover support
   const renderCustomNode = useCallback(({ nodeDatum, toggleNode }: any) => {
-    const nodeType = nodeDatum.attributes?.nodeType || 'topic';
-    const color = NODE_COLORS[nodeType] || NODE_COLORS.topic;
+    const nodeType = nodeDatum.attributes?.nodeType || 'theme';
+    const color = NODE_COLORS[nodeType] || NODE_COLORS.theme;
     const isRoot = nodeType === 'root';
     const hasChildren = nodeDatum.children && nodeDatum.children.length > 0;
 
@@ -244,7 +250,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
             userSelect: 'none'
           }}
         >
-          {NODE_TYPE_LABELS[nodeType]}
+          {NODE_TYPE_LABELS[nodeType] || nodeType}
         </text>
       </g>
     );
@@ -329,7 +335,8 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
 
   const containerStyles = {
     width: '100%',
-    height: '700px',
+    height: '100%',
+    minHeight: '600px',
     border: '2px solid #e5e7eb',
     borderRadius: '12px',
     backgroundColor: '#fafafa',
@@ -350,7 +357,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
   }
 
   return (
-    <div className="space-y-0">
+    <div className="flex flex-col h-full space-y-0">
       {/* Header with Download Button */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-gray-900">Meeting Mindmap</h2>
@@ -392,7 +399,11 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
       </div>
 
       {/* Mindmap Container */}
-      <div style={containerStyles} className="mindmap-container" ref={treeContainerRef}>
+      <div
+        style={containerStyles}
+        className="mindmap-container flex-1"
+        ref={treeContainerRef}
+      >
         {/* Legend - Top Right Corner */}
         <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm p-3 rounded-lg border border-gray-200 shadow-sm z-10 max-w-xs">
           <h4 className="text-xs font-semibold text-gray-700 mb-2">Node Types</h4>
@@ -451,7 +462,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
           >
             <div className="font-semibold text-sm mb-1">{hoveredNode.name}</div>
             <div className="text-xs text-gray-300 mb-2 capitalize">
-              {NODE_TYPE_LABELS[hoveredNode.attributes?.nodeType || 'topic']}
+              {NODE_TYPE_LABELS[hoveredNode.attributes?.nodeType || 'theme']}
             </div>
             <div className="text-xs text-gray-200 leading-relaxed">
               {hoveredNode.attributes.description}
