@@ -27,6 +27,7 @@ const sections = [
 
 export function MeetingDashboard({ data }: MeetingDashboardProps) {
   const [activeSection, setActiveSection] = useState('overview');
+  const isMindmap = activeSection === 'mindmap';
 
   // Enhanced safeguards for backward compatibility and undefined handling
   const collectiveSummary = data?.collective_summary || {
@@ -42,18 +43,24 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
     participants: []
   };
 
+  const scrollAreaClass =
+    'custom-scrollbar pr-2 h-[calc(100vh-220px)] overflow-y-auto';
+  const columnHeight = 'h-[calc(100vh-220px)]';
+
   return (
-    <div className="container mx-auto py-8">
+    <div className={isMindmap ? 'mx-auto w-full px-6 py-5' : 'container mx-auto py-5'}>
       {/* Meeting Header */}
-      <div className="mb-8">
-        <MeetingHeader details={meetingDetails} />
-      </div>
+      {!isMindmap && (
+        <div className="mb-8">
+          <MeetingHeader details={meetingDetails} />
+        </div>
+      )}
 
       {/* 3-Column Layout */}
-      <div className="flex gap-5">
+      <div className={`flex gap-4 ${isMindmap ? 'items-stretch' : ''}`}>
         {/* Left Sidebar - Navigation */}
-        <aside className="w-56 flex-shrink-0">
-          <div className="sticky top-8 space-y-2">
+        <aside className="w-44 flex-shrink-0">
+          <div className="space-y-2">
             {sections.map((section) => {
               const Icon = section.icon;
               return (
@@ -75,10 +82,12 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
         </aside>
 
         {/* Center Content Area */}
-        <main className="flex-1 min-w-0 max-w-3xl">
+        <main
+          className={`flex-1 min-w-0 ${isMindmap ? 'max-w-full' : 'max-w-4xl'}`}
+        >
           {/* Overview Section */}
           {activeSection === 'overview' && (
-            <div className="space-y-5">
+            <div className={`${scrollAreaClass} space-y-5`}>
               {/* Meeting Summary with Markdown */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -130,14 +139,14 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
 
           {/* Chapters Section */}
           {activeSection === 'chapters' && (
-            <div className="space-y-5">
+            <div className={`${scrollAreaClass} space-y-5`}>
               <ChaptersList chapters={data?.chapters || []} />
             </div>
           )}
 
           {/* Mindmap Section */}
           {activeSection === 'mindmap' && (
-            <div>
+            <div className="h-[calc(100vh-8rem)]">
               <MindmapCanvas mindmap={data?.mindmap || { center_node: { id: 'root', label: 'Meeting', type: 'root' }, nodes: [], edges: [] }} />
             </div>
           )}
@@ -145,8 +154,8 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
 
         {/* Right Sidebar - To-Dos (Hidden on Mindmap) */}
         {activeSection !== 'mindmap' && (
-          <aside className="w-96 flex-shrink-0">
-            <div className="sticky top-8">
+          <aside className="w-80 flex-shrink-0">
+            <div className={`${columnHeight} flex flex-col`}>
               <DeadlinesList tasks={collectiveSummary?.action_items || []} />
             </div>
           </aside>
