@@ -23,6 +23,26 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from .common import _fmt_local
 
+THEME_LIMIT_DEFAULT = 6
+CLAIMS_PER_THEME = 3
+OUTCOMES_PER_THEME = 2
+MIN_CLAIM_WORDS = 7
+
+OUTCOME_TYPE_WEIGHT = {
+    "decision": 220,
+    "action": 200,
+    "achievement": 170,
+    "blocker": 120,
+    "concern": 110,
+}
+
+
+def _truncate_text(text: str, limit: int = 72) -> str:
+    text = _clean(text)
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
 
 # ---------------------------------------------------------------------------
 # Utility helpers

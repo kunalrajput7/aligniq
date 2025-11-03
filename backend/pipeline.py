@@ -36,6 +36,23 @@ def _clean_text(value: Any, default: str = "") -> str:
     return text or default
 
 
+def _shorten_title(value: Any, max_words: int = 8) -> str:
+    title = _clean_text(value, "")
+    if not title:
+        return "Meeting Analysis"
+
+    # Prefer text before first colon if it reads well
+    if ":" in title:
+        left, right = title.split(":", 1)
+        if 2 <= len(left.split()) <= max_words:
+            title = left.strip()
+
+    words = title.split()
+    if len(words) > max_words:
+        title = " ".join(words[:max_words])
+    return title
+
+
 def _normalize_confidence(value: Any, default: float = 0.7) -> float:
     if isinstance(value, (int, float)):
         numeric = float(value)
@@ -101,6 +118,7 @@ def _ensure_markdown_headings(text: str) -> str:
     if not text:
         return ""
 
+    text = text.replace("\\r\\n", "\n").replace("\\n", "\n")
     replacements = {
         "Executive Summary": "## Executive Summary",
         "Meeting Overview": "## Meeting Overview",
@@ -109,6 +127,12 @@ def _ensure_markdown_headings(text: str) -> str:
         "Concerns & Challenges": "## Concerns & Challenges",
         "Risks & Challenges": "## Risks & Challenges",
         "Next Steps": "## Next Steps",
+        "Executive Summary": "## Executive Summary",
+        "Key Takeaways": "## Key Takeaways",
+        "Key Discussion Topics": "## Key Discussion Topics",
+        "Decisions Made": "## Decisions Made",
+        "Concerns & Challenges": "## Concerns & Challenges",
+        "Meeting Overview": "## Meeting Overview"
     }
 
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -121,15 +145,40 @@ def _ensure_markdown_headings(text: str) -> str:
             continue
         if first_content_idx is None:
             first_content_idx = idx
+
+        if stripped.startswith("**") and stripped.endswith("**") and len(stripped) > 4:
+            inner = stripped.strip("*").strip()
+            stripped = inner
+            lines[idx] = inner
+
         if stripped in replacements and not stripped.startswith("#"):
             lines[idx] = replacements[stripped]
+            continue
+
+        lowered = stripped.lower()
+        for key, heading in replacements.items():
+            if lowered == key.lower():
+                lines[idx] = heading
+                break
+        else:
+            if stripped.startswith("##"):
+                continue
+            if stripped in {"Key Topics", "Summary", "Highlights"}:
+                lines[idx] = f"## {stripped}"
 
     if first_content_idx is not None:
         first_line = lines[first_content_idx].strip()
         if not first_line.startswith("#"):
             lines[first_content_idx] = f"## {first_line}"
 
-    return "\n".join(lines)
+    cleaned_lines = []
+    for line in lines:
+        if line.strip().startswith("**") and line.strip().endswith("**") and line.strip().count("**") == 2:
+            cleaned_lines.append(line.replace("**", ""))
+        else:
+            cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines)
 
 
 def _normalize_action_items(items: Any) -> List[Dict[str, Any]]:
@@ -490,7 +539,7 @@ async def run_pipeline_async(
         six_thinking_hats = unified_result.get("six_thinking_hats", {}) or {}
 
         meeting_details = {
-            "title": _clean_text(meeting_details_raw.get("title"), "Meeting Analysis"),
+            "title": _clean_text(_shorten_title(meeting_details_raw.get("title")), "Meeting Analysis"),
             "date": _clean_text(
                 meeting_details_raw.get("date"), datetime.now().strftime("%Y-%m-%d")
             ),
