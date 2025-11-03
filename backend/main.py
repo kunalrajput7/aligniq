@@ -49,10 +49,15 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    api_key = os.getenv("OLLAMA_API_KEY")
+    azure_key = os.getenv("AZURE_AI_KEY")
+    azure_endpoint = os.getenv("AZURE_AI_ENDPOINT")
+    azure_deployment = os.getenv("AZURE_AI_DEPLOYMENT")
+
     return {
         "status": "healthy",
-        "ollama_api_key_set": bool(api_key)
+        "azure_ai_configured": bool(azure_key and azure_endpoint and azure_deployment),
+        "azure_ai_endpoint": azure_endpoint if azure_endpoint else "Not configured",
+        "azure_ai_deployment": azure_deployment if azure_deployment else "Not configured"
     }
 
 

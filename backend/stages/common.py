@@ -6,16 +6,29 @@ import os
 import time
 from typing import List, Dict, Optional
 import httpx
+from dotenv import load_dotenv
 
+# Load environment variables FIRST
+load_dotenv()
 
 # ---------- Defaults / Tunables ----------
-DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL", "gpt-oss:120b-cloud")
+DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL") or os.getenv("AZURE_AI_DEPLOYMENT", "grok-4-fast-reasoning")
 MAX_CHARS = int(os.getenv("SEGMENTS_MAX_CHARS", "14000"))
 COLLECTIVE_MAX_CHARS = int(os.getenv("SEGMENTS_COLLECTIVE_MAX_CHARS", "16000"))
 ITEMS_MAX_CHARS = int(os.getenv("SEGMENTS_ITEMS_MAX_CHARS", "16000"))
 CHAPTERS_MAX_CHARS = int(os.getenv("SEGMENTS_CHAPTERS_MAX_CHARS", "20000"))
 
 BAD_MODEL_LITERALS = {"string", "model", ""}
+
+AZURE_AI_ENDPOINT = os.getenv("AZURE_AI_ENDPOINT")
+AZURE_AI_KEY = os.getenv("AZURE_AI_KEY")
+AZURE_AI_DEPLOYMENT = os.getenv("AZURE_AI_DEPLOYMENT")
+AZURE_AI_API_VERSION = os.getenv("AZURE_AI_API_VERSION", "2024-05-01-preview")
+
+# Debug: Print loaded values (will be visible on startup)
+print(f"[CONFIG] AZURE_AI_ENDPOINT: {AZURE_AI_ENDPOINT}")
+print(f"[CONFIG] AZURE_AI_KEY: {'***' + AZURE_AI_KEY[-4:] if AZURE_AI_KEY else 'NOT SET'}")
+print(f"[CONFIG] AZURE_AI_DEPLOYMENT: {AZURE_AI_DEPLOYMENT}")
 
 
 def _fmt_local(ms: int) -> str:
@@ -50,45 +63,82 @@ async def call_ollama_cloud_async(
     json_mode: bool = True
 ) -> str:
     """
-    Call Ollama Cloud API asynchronously and return response content.
+    Call Azure AI Foundry deployment asynchronously and return response content.
 
     Args:
-        model: Model name
+        model: Optional override for deployment name
         messages: List of message dicts with 'role' and 'content'
-        json_mode: Whether to use JSON output format
+        json_mode: Whether to request JSON-formatted output
 
     Returns:
         Response content string
     """
-    api_key = os.getenv("OLLAMA_API_KEY")
-    if not api_key:
-        raise RuntimeError("OLLAMA_API_KEY is not set")
+    if not (AZURE_AI_ENDPOINT and AZURE_AI_KEY):
+        raise RuntimeError("Azure AI credentials are not configured. Please set AZURE_AI_ENDPOINT and AZURE_AI_KEY in .env file")
 
-    url = "https://ollama.com/api/chat"
+    # Use the deployment name from env or the provided model parameter
+    deployment = AZURE_AI_DEPLOYMENT if not model or _resolve_model(model) == DEFAULT_MODEL else _resolve_model(model)
+
+    # Azure AI Foundry uses OpenAI-compatible endpoint format
+    # Format: https://{endpoint}/openai/v1/chat/completions
+    # The deployment name goes in the "model" field of the payload
+    base_endpoint = AZURE_AI_ENDPOINT.rstrip('/')
+
+    # Ensure endpoint has /openai/v1
+    if not base_endpoint.endswith('/openai/v1'):
+        if base_endpoint.endswith('/openai'):
+            base_endpoint = f"{base_endpoint}/v1"
+        else:
+            base_endpoint = f"{base_endpoint}/openai/v1"
+
+    url = f"{base_endpoint}/chat/completions"
+
     headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "api-key": AZURE_AI_KEY
     }
 
+    # Azure AI Foundry uses deployment name in the model field (OpenAI-compatible format)
     payload = {
-        "model": model,
+        "model": deployment,  # Deployment name goes here
         "messages": messages,
-        "stream": False,
-        "options": {"temperature": 0.1}
+        "temperature": 0.1,
+        "max_tokens": 4000,
     }
 
     if json_mode:
-        payload["format"] = "json"
+        payload["response_format"] = {"type": "json_object"}
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        print(f"[DEBUG] Calling Azure AI with URL: {url}")
+        print(f"[DEBUG] Deployment: {deployment}")
+        print(f"[DEBUG] Payload keys: {payload.keys()}")
+
+        async with httpx.AsyncClient(timeout=180.0) as client:  # Increased timeout for reasoning model
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-            return data.get("message", {}).get("content", "") or "{}"
+
+            print(f"[DEBUG] Response status: {response.status_code}")
+            print(f"[DEBUG] Response data keys: {data.keys()}")
+
+            message = (data.get("choices") or [{}])[0].get("message", {})
+            content = message.get("content", "")
+
+            print(f"[DEBUG] Content length: {len(content)}")
+            print(f"[DEBUG] Content preview: {content[:200] if content else 'EMPTY'}")
+
+            return content or "{}"
     except httpx.HTTPStatusError as e:
-        raise RuntimeError(f"Ollama Cloud HTTP error: {e.response.status_code} - {e.response.text}")
+        detail = e.response.text if hasattr(e.response, 'text') else str(e)
+        print(f"[ERROR] Azure AI HTTP Error {e.response.status_code}: {detail}")
+        print(f"[ERROR] Request URL: {url}")
+        raise RuntimeError(f"Azure AI HTTP error: {e.response.status_code} - {detail}")
     except httpx.RequestError as e:
-        raise RuntimeError(f"Ollama Cloud request error: {str(e)}")
+        print(f"[ERROR] Azure AI Request Error: {str(e)}")
+        raise RuntimeError(f"Azure AI request error: {str(e)}")
     except Exception as e:
-        raise RuntimeError(f"Ollama Cloud unexpected error: {e}")
+        print(f"[ERROR] Azure AI Unexpected Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise RuntimeError(f"Azure AI unexpected error: {e}")

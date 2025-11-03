@@ -64,8 +64,15 @@ async def run_pipeline_async(
             }
         }
     """
+    print("\n" + "="*50)
+    print("[PIPELINE] Starting pipeline execution")
+    print("="*50)
+
     # Parse VTT
+    print("[PIPELINE] Step 1: Parsing VTT file...")
     utterances = parse_vtt(vtt_content)
+    print(f"[PIPELINE] Parsed {len(utterances)} utterances")
+
     if not utterances:
         return {
             "error": "No utterances found in VTT file",
@@ -94,6 +101,7 @@ async def run_pipeline_async(
         }
 
     # Segment utterances (fast, no LLM)
+    print("[PIPELINE] Step 2: Segmenting utterances...")
     segments = segment_utterances(
         utterances,
         segment_len_ms=segment_len_ms,
@@ -101,17 +109,27 @@ async def run_pipeline_async(
         include_text=True,
         include_mapping=False
     )
+    print(f"[PIPELINE] Created {len(segments)} segments")
 
     # Stage 1: Summarize all segments in parallel
+    print(f"[PIPELINE] Step 3: Stage 1 - Summarizing {len(segments)} segments...")
     segment_summaries = await summarize_segments_async(segments, model)
+    print(f"[PIPELINE] Stage 1 complete. Got {len(segment_summaries)} summaries")
+    if segment_summaries:
+        print(f"[PIPELINE] First summary preview: {str(segment_summaries[0])[:200]}...")
 
     # Stages 2, 3, 4 run in parallel using asyncio.gather()
     # All three depend on segment_summaries but are independent of each other
+    print("[PIPELINE] Step 4: Stages 2, 3, 4 running in parallel...")
     collective_data, hats_data, chapters = await asyncio.gather(
         summarize_collective_async(utterances, segment_summaries, model),  # Stage 2 now takes utterances
         extract_hats_async(segment_summaries, model),
         build_chapters_async(segment_summaries, model)
     )
+    print(f"[PIPELINE] Stages 2, 3, 4 complete")
+    print(f"[PIPELINE] Collective data keys: {collective_data.keys() if collective_data else 'EMPTY'}")
+    print(f"[PIPELINE] Hats data count: {len(hats_data) if hats_data else 0}")
+    print(f"[PIPELINE] Chapters count: {len(chapters) if chapters else 0}")
 
     # Extract meeting details from collective_data (now includes title and date)
     # Calculate deterministic fields from utterances
@@ -140,11 +158,16 @@ async def run_pipeline_async(
     }
 
     # Stage 5: Build mindmap (depends on collective_summary and chapters)
+    print("[PIPELINE] Step 5: Building mindmap...")
     mindmap = await build_mindmap_async(
         chapters=chapters,
         collective_summary=collective_summary,
         model=model
     )
+    print(f"[PIPELINE] Mindmap complete. Nodes: {len(mindmap.get('nodes', []))}, Edges: {len(mindmap.get('edges', []))}")
+
+    print("[PIPELINE] Pipeline execution complete!")
+    print("="*50 + "\n")
 
     return {
         "meeting_details": meeting_details,

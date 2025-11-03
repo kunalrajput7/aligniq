@@ -5,7 +5,10 @@
       "Bash(rm:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(.env)"
     ],
     "deny": [],
     "ask": []
