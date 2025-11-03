@@ -1,11 +1,13 @@
 """
-Pipeline orchestrator: Leverages modern LLMs' large context windows for single-call comprehensive analysis.
+Pipeline orchestrator: 3-Stage focused architecture for optimal quality and efficiency.
 
 ARCHITECTURE:
-- Stage Unified: Single API call for complete meeting analysis (replaces Stages 1-4)
-- Stage 5: Optional mindmap generation (depends on unified analysis)
+- Stage 1 (Foundation): Extract metadata, timeline, chapter boundaries
+- Stage 2 (Extraction): Extract action items, achievements, blockers, Six Thinking Hats
+- Stage 3 (Synthesis): Generate narrative summary and chapter summaries
+- Stage 4 (Mindmap): Build mindmap visualization
 
-Total API calls: 1-2 per meeting (vs 20+ in old architecture)
+Total API calls: 4 per meeting (optimal balance between quality and cost)
 """
 from __future__ import annotations
 
@@ -14,8 +16,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from utils.vtt_parser import parse_vtt
-from stages.stage_unified import run_unified_analysis_async
-from stages.stage5_mindmap import build_mindmap_async
+from stages.stage1_foundation import run_foundation_stage_async
+from stages.stage2_extraction import run_extraction_stage_async
+from stages.stage3_synthesis import run_synthesis_stage_async
+from stages.stage4_mindmap import build_mindmap_async
 
 CONFIDENCE_KEYWORDS = {
     "very high": 0.95,
@@ -485,16 +489,16 @@ async def run_pipeline_async(
     segment_len_ms: int = 600_000,  # Deprecated parameter, kept for API compatibility
 ) -> Dict[str, Any]:
     """
-    Run the optimized meeting summarization pipeline using modern LLMs' large context windows.
+    Run the 3-stage meeting summarization pipeline for optimal quality and efficiency.
 
-    NEW ARCHITECTURE:
+    NEW 3-STAGE ARCHITECTURE:
     1. Parse VTT file
-    2. Stage Unified: Single comprehensive analysis (replaces old Stages 1-4)
-       - Extracts: meeting details, narrative summary, action items, achievements,
-         blockers, six thinking hats, chapters, timeline
-    3. Stage 5: Build mindmap (optional, depends on unified analysis)
+    2. Stage 1 (Foundation): Extract metadata, timeline, chapter boundaries
+    3. Stage 2 (Extraction): Extract action items, achievements, blockers, Six Thinking Hats
+    4. Stage 3 (Synthesis): Generate narrative summary and chapter summaries
+    5. Stage 4 (Mindmap): Build mindmap visualization
 
-    Total API calls: 1-2 per meeting (vs 20+ in old segmented architecture)
+    Total API calls: 4 per meeting (optimal balance between quality and cost)
 
     Args:
         vtt_content: VTT file content as string
@@ -528,7 +532,7 @@ async def run_pipeline_async(
         }
     """
     print("\n" + "=" * 70)
-    print("[PIPELINE] Starting OPTIMIZED pipeline execution (Unified Architecture)")
+    print("[PIPELINE] Starting 3-STAGE pipeline execution")
     print("=" * 70)
 
     # Step 1: Parse VTT
@@ -573,24 +577,37 @@ async def run_pipeline_async(
     print(f"[PIPELINE] Participants: {len(participants)}, Unknown speakers: {unknown_count}")
 
     try:
-        print("\n[PIPELINE] Step 2: Running unified comprehensive analysis...")
-        print(
-            "[PIPELINE] This single call replaces old Stages 1-4 (segment summaries, collective, hats, chapters)"
-        )
-        unified_result = await run_unified_analysis_async(utterances, model)
-        print("[PIPELINE] Unified analysis complete!")
+        # Stage 1: Foundation - Extract structure
+        print("\n[PIPELINE] Step 2: Stage 1 - Foundation (metadata, timeline, chapters)")
+        stage1_result = await run_foundation_stage_async(utterances, model)
+        print("[PIPELINE] Stage 1 complete!")
 
-        meeting_details_raw = unified_result.get("meeting_details", {}) or {}
-        narrative_summary_raw = unified_result.get("narrative_summary", "")
+        meeting_details_raw = stage1_result.get("meeting_details", {}) or {}
+        timeline = _normalize_timeline(stage1_result.get("timeline", []))
+        chapters_foundation = stage1_result.get("chapters", [])
+
+        # Stage 2: Extraction - Extract action items, achievements, blockers, hats
+        print("\n[PIPELINE] Step 3: Stage 2 - Extraction (action items, achievements, blockers, hats)")
+        stage2_result = await run_extraction_stage_async(utterances, chapters_foundation, model)
+        print("[PIPELINE] Stage 2 complete!")
+
+        action_items = _normalize_action_items(stage2_result.get("action_items", []))
+        achievements = _normalize_achievements(stage2_result.get("achievements", []))
+        blockers = _normalize_blockers(stage2_result.get("blockers", []))
+        six_thinking_hats = stage2_result.get("six_thinking_hats", {}) or {}
+
+        # Stage 3: Synthesis - Generate narrative summaries
+        print("\n[PIPELINE] Step 4: Stage 3 - Synthesis (narrative summary, chapter summaries)")
+        stage3_result = await run_synthesis_stage_async(
+            utterances, chapters_foundation, action_items, achievements, blockers, model
+        )
+        print("[PIPELINE] Stage 3 complete!")
+
+        narrative_summary_raw = stage3_result.get("narrative_summary", "")
         narrative_summary = _ensure_markdown_headings(
             _sanitize_narrative_summary(narrative_summary_raw)
         )
-        action_items = _normalize_action_items(unified_result.get("action_items", []))
-        achievements = _normalize_achievements(unified_result.get("achievements", []))
-        blockers = _normalize_blockers(unified_result.get("blockers", []))
-        chapters = _normalize_chapters(unified_result.get("chapters", []))
-        timeline = _normalize_timeline(unified_result.get("timeline", []))
-        six_thinking_hats = unified_result.get("six_thinking_hats", {}) or {}
+        chapters = _normalize_chapters(stage3_result.get("chapters", []))
 
         meeting_details = {
             "title": _clean_text(_shorten_title(meeting_details_raw.get("title")), "Meeting Analysis"),
@@ -645,7 +662,7 @@ async def run_pipeline_async(
                     }
                 )
 
-        print("[PIPELINE] Extracted from unified analysis:")
+        print("[PIPELINE] Extracted from 3-stage analysis:")
         print(f"  - Meeting: {meeting_details['title']}")
         print(f"  - Action Items: {len(action_items)}")
         print(f"  - Achievements: {len(achievements)}")
@@ -655,12 +672,12 @@ async def run_pipeline_async(
         print(f"  - Timeline: {len(timeline)} key moments")
 
     except Exception as exc:  # noqa: BLE001
-        print(f"[PIPELINE] ERROR in unified analysis: {exc}")
+        print(f"[PIPELINE] ERROR in 3-stage analysis: {exc}")
         import traceback
 
         traceback.print_exc()
         return {
-            "error": f"Unified analysis failed: {exc}",
+            "error": f"3-stage analysis failed: {exc}",
             "meeting_details": {
                 "title": "Error",
                 "date": datetime.now().strftime("%Y-%m-%d"),
@@ -684,8 +701,8 @@ async def run_pipeline_async(
             },
         }
 
-    # Step 3: Build mindmap (optional, depends on chapters and summary)
-    print("\n[PIPELINE] Step 3: Building mindmap...")
+    # Step 5: Build mindmap (optional, depends on chapters and summary)
+    print("\n[PIPELINE] Step 5: Stage 4 - Mindmap (visualization)")
     try:
         mindmap = await build_mindmap_async(
             meeting_details=meeting_details,
@@ -708,7 +725,7 @@ async def run_pipeline_async(
         }
 
     print("\n[PIPELINE] Pipeline execution complete!")
-    print("[PIPELINE] Total API calls: 2 (unified analysis + mindmap)")
+    print("[PIPELINE] Total API calls: 4 (Stage 1-3 + mindmap)")
     print("=" * 70 + "\n")
 
     return {

@@ -103,7 +103,8 @@ async def call_ollama_cloud_async(
     payload = {
         "model": deployment,  # Deployment name goes here
         "messages": messages,
-        "max_completion_tokens": 16000,  # GPT-5 Nano uses max_completion_tokens instead of max_tokens
+        # Removed max_completion_tokens limit - let model use its full capacity
+        # GPT-5 Nano supports up to 200K tokens context window
     }
 
     if json_mode:
