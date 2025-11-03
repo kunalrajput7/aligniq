@@ -384,6 +384,59 @@ HAT_NARRATIVE = {
 }
 
 
+def _sanitize_narrative_summary(text: str) -> str:
+    """
+    Remove any extra sections (Six Thinking Hats, Chapters, JSON dumps, etc.)
+    that sometimes get appended to the narrative summary by the model.
+    """
+    if not text:
+        return ""
+
+    cleaned = text.replace("\r", "\n")
+    stop_markers = (
+        "Six Thinking Hats",
+        "Six Thinking Hats Analysis",
+        "Chapters [",
+        "Timeline [",
+        "Action Item",
+        "Achievements",
+        "Blockers",
+        "\"chapters\"",
+        "\"timeline\"",
+        "\"hats\"",
+    )
+
+    lower_cleaned = cleaned.lower()
+    for marker in stop_markers:
+        idx = lower_cleaned.find(marker.lower())
+        if idx != -1:
+            cleaned = cleaned[:idx]
+            break
+
+    lines = []
+    disallowed_starts = (
+        "Chapters [",
+        "Six Thinking Hats",
+        "Six Thinking Hats Analysis",
+        "Timeline [",
+        "Action Item",
+        "Achievements",
+        "Achievement",
+        "Blockers",
+        "Blocker",
+    )
+    for line in cleaned.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            lines.append("")
+            continue
+        if any(stripped.startswith(prefix) for prefix in disallowed_starts):
+            break
+        lines.append(line)
+
+    return "\n".join(lines).strip()
+
+
 def _build_hat_description(participant: str, hat: str, sections: Dict[str, str]) -> str:
     hat_label = hat.capitalize()
     focus = HAT_NARRATIVE.get(hat, "contributed meaningfully to the conversation.")
@@ -528,8 +581,9 @@ async def run_pipeline_async(
         print("[PIPELINE] Unified analysis complete!")
 
         meeting_details_raw = unified_result.get("meeting_details", {}) or {}
+        narrative_summary_raw = unified_result.get("narrative_summary", "")
         narrative_summary = _ensure_markdown_headings(
-            unified_result.get("narrative_summary", "")
+            _sanitize_narrative_summary(narrative_summary_raw)
         )
         action_items = _normalize_action_items(unified_result.get("action_items", []))
         achievements = _normalize_achievements(unified_result.get("achievements", []))
@@ -665,3 +719,5 @@ async def run_pipeline_async(
         "timeline": timeline,
         "mindmap": mindmap,
     }
+
+

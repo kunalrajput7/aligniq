@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "az": "^0.2.3",
     "framer-motion": "^12.23.24"
   }
 }
