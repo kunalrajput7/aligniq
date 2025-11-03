@@ -1,41 +1,324 @@
 """
-Pipeline orchestrator: Runs all stages with parallel execution where possible using asyncio.
+Pipeline orchestrator: Leverages modern LLMs' large context windows for single-call comprehensive analysis.
+
+ARCHITECTURE:
+- Stage Unified: Single API call for complete meeting analysis (replaces Stages 1-4)
+- Stage 5: Optional mindmap generation (depends on unified analysis)
+
+Total API calls: 1-2 per meeting (vs 20+ in old architecture)
 """
 from __future__ import annotations
+
 import asyncio
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from utils.vtt_parser import parse_vtt
-from stages.segmentation import segment_utterances
-from stages.stage1_summaries import summarize_segments_async
-from stages.stage2_collective import summarize_collective_async
-from stages.stage3_supplementary import extract_hats_async
-from stages.stage4_chapters import build_chapters_async
+from stages.stage_unified import run_unified_analysis_async
 from stages.stage5_mindmap import build_mindmap_async
+
+CONFIDENCE_KEYWORDS = {
+    "very high": 0.95,
+    "high": 0.9,
+    "medium": 0.6,
+    "mid": 0.6,
+    "moderate": 0.6,
+    "low": 0.35,
+    "very low": 0.2,
+    "uncertain": 0.35,
+}
+
+
+def _clean_text(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
+def _normalize_confidence(value: Any, default: float = 0.7) -> float:
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+    elif isinstance(value, str):
+        s = value.strip().lower()
+        if not s:
+            return default
+        if s in CONFIDENCE_KEYWORDS:
+            return CONFIDENCE_KEYWORDS[s]
+        s = s.replace("%", "")
+        try:
+            numeric = float(s)
+        except ValueError:
+            return default
+    else:
+        return default
+
+    if numeric > 1:
+        numeric = numeric / 100 if numeric > 100 else min(numeric, 1.0)
+    if numeric < 0:
+        numeric = 0.0
+    return max(0.0, min(numeric, 1.0))
+
+
+def _format_timestamp_ms(ms: Any) -> str:
+    try:
+        ms_int = int(float(ms))
+    except (TypeError, ValueError):
+        return ""
+
+    seconds_total = ms_int // 1000
+    seconds = seconds_total % 60
+    minutes = (seconds_total // 60) % 60
+    hours = seconds_total // 3600
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def _normalize_evidence(evidence_list: Any) -> List[Dict[str, str]]:
+    normalized: List[Dict[str, str]] = []
+    if not isinstance(evidence_list, list):
+        return normalized
+
+    for entry in evidence_list:
+        if not isinstance(entry, dict):
+            continue
+        quote = _clean_text(entry.get("quote") or entry.get("text"))
+        if not quote:
+            continue
+        timestamp = entry.get("t") or entry.get("timestamp") or entry.get("time")
+        if not timestamp:
+            timestamp = _format_timestamp_ms(entry.get("timestamp_ms"))
+        timestamp_str = _clean_text(timestamp)
+        normalized.append(
+            {
+                "t": timestamp_str,
+                "quote": quote,
+            }
+        )
+    return normalized
+
+
+def _ensure_markdown_headings(text: str) -> str:
+    if not text:
+        return ""
+
+    replacements = {
+        "Executive Summary": "## Executive Summary",
+        "Meeting Overview": "## Meeting Overview",
+        "Key Discussion Topics": "## Key Discussion Topics",
+        "Decisions Made": "## Decisions Made",
+        "Concerns & Challenges": "## Concerns & Challenges",
+        "Risks & Challenges": "## Risks & Challenges",
+        "Next Steps": "## Next Steps",
+    }
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    first_content_idx = None
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if first_content_idx is None:
+            first_content_idx = idx
+        if stripped in replacements and not stripped.startswith("#"):
+            lines[idx] = replacements[stripped]
+
+    if first_content_idx is not None:
+        first_line = lines[first_content_idx].strip()
+        if not first_line.startswith("#"):
+            lines[first_content_idx] = f"## {first_line}"
+
+    return "\n".join(lines)
+
+
+def _normalize_action_items(items: Any) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    if not isinstance(items, list):
+        return normalized
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        task = _clean_text(item.get("task") or item.get("action") or item.get("title"))
+        if not task:
+            continue
+        owner = _clean_text(
+            item.get("owner") or item.get("assignee") or item.get("responsible"),
+            "Unassigned",
+        )
+        deadline_raw = item.get("deadline") or item.get("due_date") or item.get("timeline")
+        if isinstance(deadline_raw, dict):
+            deadline = _clean_text(deadline_raw.get("text") or deadline_raw.get("label"))
+        else:
+            deadline = _clean_text(deadline_raw)
+        status = _clean_text(item.get("status") or item.get("state") or "pending", "pending")
+        confidence = _normalize_confidence(item.get("confidence"), default=0.75)
+
+        normalized.append(
+            {
+                "task": task,
+                "owner": owner or "Unassigned",
+                "deadline": deadline,
+                "status": status or "pending",
+                "confidence": confidence,
+            }
+        )
+    return normalized
+
+
+def _normalize_achievements(items: Any) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    if not isinstance(items, list):
+        return normalized
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        achievement = _clean_text(item.get("achievement") or item.get("summary"))
+        if not achievement:
+            continue
+        members = item.get("members") or item.get("member")
+        if isinstance(members, list):
+            member = ", ".join(filter(None, (_clean_text(m) for m in members)))
+        else:
+            member = _clean_text(members)
+        member = member or "Team"
+        normalized.append(
+            {
+                "achievement": achievement,
+                "member": member,
+                "confidence": _normalize_confidence(item.get("confidence"), default=0.8),
+                "evidence": _normalize_evidence(item.get("evidence")),
+            }
+        )
+    return normalized
+
+
+def _normalize_blockers(items: Any) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    if not isinstance(items, list):
+        return normalized
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        blocker = _clean_text(item.get("blocker") or item.get("issue") or item.get("challenge"))
+        if not blocker:
+            continue
+        affected = item.get("affected_members") or item.get("members") or item.get("member")
+        if isinstance(affected, list):
+            member = ", ".join(filter(None, (_clean_text(a) for a in affected)))
+        else:
+            member = _clean_text(affected)
+        member = member or "Unknown"
+        owner = _clean_text(
+            item.get("owner") or item.get("responsible") or item.get("assignee"),
+            "Unassigned",
+        )
+        normalized.append(
+            {
+                "blocker": blocker,
+                "member": member,
+                "owner": owner or "Unassigned",
+                "confidence": _normalize_confidence(item.get("confidence"), default=0.65),
+                "evidence": _normalize_evidence(item.get("evidence")),
+            }
+        )
+    return normalized
+
+
+def _normalize_chapters(items: Any) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    if not isinstance(items, list):
+        return normalized
+
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        chapter_id = _clean_text(item.get("chapter_id")) or f"chap-{idx:03d}"
+        title = _clean_text(item.get("title"), f"Chapter {idx + 1}")
+        summary = _clean_text(item.get("summary")).replace("\r\n", "\n").replace("\r", "\n")
+
+        segments = item.get("segment_ids") or item.get("segments") or []
+        segment_ids: List[str] = []
+        if isinstance(segments, list):
+            for seg in segments:
+                if isinstance(seg, int):
+                    segment_ids.append(f"seg-{seg:04d}")
+                else:
+                    segment_ids.append(_clean_text(seg))
+
+        normalized.append(
+            {
+                "chapter_id": chapter_id,
+                "segment_ids": [s for s in segment_ids if s],
+                "title": title,
+                "summary": summary,
+            }
+        )
+    return normalized
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_timeline(items: Any) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    if not isinstance(items, list):
+        return normalized
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        text = _clean_text(item.get("text"))
+        if not text:
+            continue
+        timestamp_ms = item.get("timestamp_ms")
+        if timestamp_ms is None:
+            timestamp_ms = item.get("time_ms") or item.get("timestamp")
+        ts_int = _to_int(timestamp_ms)
+        speakers_raw = item.get("speakers")
+        if isinstance(speakers_raw, list):
+            speakers = [s for s in (_clean_text(s) for s in speakers_raw) if s]
+        else:
+            speaker_single = _clean_text(speakers_raw)
+            speakers = [speaker_single] if speaker_single else []
+        normalized.append(
+            {
+                "timestamp_ms": ts_int,
+                "text": text,
+                "speakers": speakers,
+            }
+        )
+    return normalized
 
 
 async def run_pipeline_async(
     vtt_content: str,
     model: Optional[str] = None,
-    segment_len_ms: int = 600_000,  # 10 minutes
+    segment_len_ms: int = 600_000,  # Deprecated parameter, kept for API compatibility
 ) -> Dict[str, Any]:
     """
-    Run the complete meeting summarization pipeline with async parallel execution.
+    Run the optimized meeting summarization pipeline using modern LLMs' large context windows.
 
-    Execution flow:
-    1. Parse VTT and segment utterances (fast, no LLM)
-    2. Stage 1: Summarize segments (parallel execution for all segments)
-    3. Stages 2, 3, 4 run in parallel (all depend on Stage 1)
-       - Stage 2: Collective summary + meeting details (title, date)
-       - Stage 3: Extract thinking hats
-       - Stage 4: Build chapters
-    4. Stage 5: Build mindmap (depends on collective_summary and chapters)
+    NEW ARCHITECTURE:
+    1. Parse VTT file
+    2. Stage Unified: Single comprehensive analysis (replaces old Stages 1-4)
+       - Extracts: meeting details, narrative summary, action items, achievements,
+         blockers, six thinking hats, chapters, timeline
+    3. Stage 5: Build mindmap (optional, depends on unified analysis)
+
+    Total API calls: 1-2 per meeting (vs 20+ in old segmented architecture)
 
     Args:
         vtt_content: VTT file content as string
         model: Model name (optional, uses env default)
-        segment_len_ms: Segment length in milliseconds
+        segment_len_ms: Deprecated, kept for API compatibility
 
     Returns:
         Dict containing all pipeline outputs:
@@ -47,8 +330,6 @@ async def run_pipeline_async(
                 "participants": [str],
                 "unknown_count": int
             },
-            "segments": [...],
-            "segment_summaries": [...],
             "collective_summary": {
                 "narrative_summary": "...",
                 "action_items": [...],
@@ -57,6 +338,7 @@ async def run_pipeline_async(
             },
             "hats": [...],
             "chapters": [...],
+            "timeline": [...],
             "mindmap": {
                 "center_node": {...},
                 "nodes": [...],
@@ -64,16 +346,17 @@ async def run_pipeline_async(
             }
         }
     """
-    print("\n" + "="*50)
-    print("[PIPELINE] Starting pipeline execution")
-    print("="*50)
+    print("\n" + "=" * 70)
+    print("[PIPELINE] Starting OPTIMIZED pipeline execution (Unified Architecture)")
+    print("=" * 70)
 
-    # Parse VTT
+    # Step 1: Parse VTT
     print("[PIPELINE] Step 1: Parsing VTT file...")
     utterances = parse_vtt(vtt_content)
     print(f"[PIPELINE] Parsed {len(utterances)} utterances")
 
     if not utterances:
+        print("[PIPELINE] ERROR: No utterances found in VTT file")
         return {
             "error": "No utterances found in VTT file",
             "meeting_details": {
@@ -81,100 +364,170 @@ async def run_pipeline_async(
                 "date": datetime.now().strftime("%Y-%m-%d"),
                 "duration_ms": 0,
                 "participants": [],
-                "unknown_count": 0
+                "unknown_count": 0,
             },
-            "segments": [],
-            "segment_summaries": [],
             "collective_summary": {
                 "narrative_summary": "",
                 "action_items": [],
                 "achievements": [],
-                "blockers": []
+                "blockers": [],
             },
             "hats": [],
             "chapters": [],
+            "timeline": [],
             "mindmap": {
                 "center_node": {"id": "root", "label": "Meeting", "type": "root"},
                 "nodes": [],
-                "edges": []
-            }
+                "edges": [],
+            },
         }
 
-    # Segment utterances (fast, no LLM)
-    print("[PIPELINE] Step 2: Segmenting utterances...")
-    segments = segment_utterances(
-        utterances,
-        segment_len_ms=segment_len_ms,
-        overlap_ratio=0.0,
-        include_text=True,
-        include_mapping=False
-    )
-    print(f"[PIPELINE] Created {len(segments)} segments")
-
-    # Stage 1: Summarize all segments in parallel
-    print(f"[PIPELINE] Step 3: Stage 1 - Summarizing {len(segments)} segments...")
-    segment_summaries = await summarize_segments_async(segments, model)
-    print(f"[PIPELINE] Stage 1 complete. Got {len(segment_summaries)} summaries")
-    if segment_summaries:
-        print(f"[PIPELINE] First summary preview: {str(segment_summaries[0])[:200]}...")
-
-    # Stages 2, 3, 4 run in parallel using asyncio.gather()
-    # All three depend on segment_summaries but are independent of each other
-    print("[PIPELINE] Step 4: Stages 2, 3, 4 running in parallel...")
-    collective_data, hats_data, chapters = await asyncio.gather(
-        summarize_collective_async(utterances, segment_summaries, model),  # Stage 2 now takes utterances
-        extract_hats_async(segment_summaries, model),
-        build_chapters_async(segment_summaries, model)
-    )
-    print(f"[PIPELINE] Stages 2, 3, 4 complete")
-    print(f"[PIPELINE] Collective data keys: {collective_data.keys() if collective_data else 'EMPTY'}")
-    print(f"[PIPELINE] Hats data count: {len(hats_data) if hats_data else 0}")
-    print(f"[PIPELINE] Chapters count: {len(chapters) if chapters else 0}")
-
-    # Extract meeting details from collective_data (now includes title and date)
-    # Calculate deterministic fields from utterances
-    duration_ms = int(utterances[-1]["end_ms"]) if utterances else 0
+    # Deterministic metadata derived from transcript
+    duration_ms = int(utterances[-1]["end_ms"])
     speakers = [str(u.get("speaker", "")).strip() for u in utterances]
     participants = sorted({s for s in speakers if s and s != "Speaker ?"})
     unknown_count = sum(1 for s in speakers if s == "Speaker ?")
 
-    # Use today's date if no date found in transcript
-    meeting_date = collective_data.get("meeting_date") if collective_data.get("meeting_date") else datetime.now().strftime("%Y-%m-%d")
+    print(f"[PIPELINE] Meeting duration: {duration_ms}ms")
+    print(f"[PIPELINE] Participants: {len(participants)}, Unknown speakers: {unknown_count}")
 
-    meeting_details = {
-        "title": collective_data.get("meeting_title", ""),
-        "date": meeting_date,
-        "duration_ms": duration_ms,
-        "participants": participants,
-        "unknown_count": unknown_count
-    }
+    try:
+        print("\n[PIPELINE] Step 2: Running unified comprehensive analysis...")
+        print(
+            "[PIPELINE] This single call replaces old Stages 1-4 (segment summaries, collective, hats, chapters)"
+        )
+        unified_result = await run_unified_analysis_async(utterances, model)
+        print("[PIPELINE] Unified analysis complete!")
 
-    # Build collective_summary without meeting_title and meeting_date
-    collective_summary = {
-        "narrative_summary": collective_data.get("narrative_summary", ""),
-        "action_items": collective_data.get("action_items", []),
-        "achievements": collective_data.get("achievements", []),
-        "blockers": collective_data.get("blockers", [])
-    }
+        meeting_details_raw = unified_result.get("meeting_details", {}) or {}
+        narrative_summary = _ensure_markdown_headings(
+            unified_result.get("narrative_summary", "")
+        )
+        action_items = _normalize_action_items(unified_result.get("action_items", []))
+        achievements = _normalize_achievements(unified_result.get("achievements", []))
+        blockers = _normalize_blockers(unified_result.get("blockers", []))
+        chapters = _normalize_chapters(unified_result.get("chapters", []))
+        timeline = _normalize_timeline(unified_result.get("timeline", []))
+        six_thinking_hats = unified_result.get("six_thinking_hats", {}) or {}
 
-    # Stage 5: Build mindmap (depends on collective_summary and chapters)
-    print("[PIPELINE] Step 5: Building mindmap...")
-    mindmap = await build_mindmap_async(
-        chapters=chapters,
-        collective_summary=collective_summary,
-        model=model
-    )
-    print(f"[PIPELINE] Mindmap complete. Nodes: {len(mindmap.get('nodes', []))}, Edges: {len(mindmap.get('edges', []))}")
+        meeting_details = {
+            "title": _clean_text(meeting_details_raw.get("title"), "Meeting Analysis"),
+            "date": _clean_text(
+                meeting_details_raw.get("date"), datetime.now().strftime("%Y-%m-%d")
+            ),
+            "duration_ms": duration_ms,
+            "participants": participants,
+            "unknown_count": unknown_count,
+        }
 
-    print("[PIPELINE] Pipeline execution complete!")
-    print("="*50 + "\n")
+        collective_summary = {
+            "narrative_summary": narrative_summary,
+            "action_items": action_items,
+            "achievements": achievements,
+            "blockers": blockers,
+        }
+
+        hats: List[Dict[str, Any]] = []
+        if isinstance(six_thinking_hats, dict):
+            for participant, hats_data in six_thinking_hats.items():
+                if not isinstance(hats_data, dict):
+                    continue
+                sections = {
+                    "white": _clean_text(hats_data.get("white_hat")),
+                    "red": _clean_text(hats_data.get("red_hat")),
+                    "black": _clean_text(hats_data.get("black_hat")),
+                    "yellow": _clean_text(hats_data.get("yellow_hat")),
+                    "green": _clean_text(hats_data.get("green_hat")),
+                    "blue": _clean_text(hats_data.get("blue_hat")),
+                }
+                lengths = {color: len(text) for color, text in sections.items()}
+                dominant_hat = max(lengths, key=lengths.get)
+                total_chars = sum(lengths.values())
+                dominant_text = sections[dominant_hat]
+                if total_chars:
+                    confidence_hat = max(0.5, min(lengths[dominant_hat] / total_chars, 1.0))
+                else:
+                    confidence_hat = 0.6
+
+                hats.append(
+                    {
+                        "speaker": participant,
+                        "hat": dominant_hat,
+                        "t": "00:00:00",
+                        "evidence": dominant_text,
+                        "confidence": round(confidence_hat, 2),
+                    }
+                )
+
+        print("[PIPELINE] Extracted from unified analysis:")
+        print(f"  - Meeting: {meeting_details['title']}")
+        print(f"  - Action Items: {len(action_items)}")
+        print(f"  - Achievements: {len(achievements)}")
+        print(f"  - Blockers: {len(blockers)}")
+        print(f"  - Six Thinking Hats: {len(hats)} participants")
+        print(f"  - Chapters: {len(chapters)}")
+        print(f"  - Timeline: {len(timeline)} key moments")
+
+    except Exception as exc:  # noqa: BLE001
+        print(f"[PIPELINE] ERROR in unified analysis: {exc}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "error": f"Unified analysis failed: {exc}",
+            "meeting_details": {
+                "title": "Error",
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "duration_ms": duration_ms,
+                "participants": participants,
+                "unknown_count": unknown_count,
+            },
+            "collective_summary": {
+                "narrative_summary": "",
+                "action_items": [],
+                "achievements": [],
+                "blockers": [],
+            },
+            "hats": [],
+            "chapters": [],
+            "timeline": [],
+            "mindmap": {
+                "center_node": {"id": "root", "label": "Meeting", "type": "root"},
+                "nodes": [],
+                "edges": [],
+            },
+        }
+
+    # Step 3: Build mindmap (optional, depends on chapters and summary)
+    print("\n[PIPELINE] Step 3: Building mindmap...")
+    try:
+        mindmap = await build_mindmap_async(
+            chapters=chapters,
+            collective_summary=collective_summary,
+            model=model,
+        )
+        print(
+            "[PIPELINE] Mindmap complete. "
+            f"Nodes: {len(mindmap.get('nodes', []))}, Edges: {len(mindmap.get('edges', []))}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[PIPELINE] Warning: Mindmap generation failed: {exc}")
+        mindmap = {
+            "center_node": {"id": "root", "label": meeting_details["title"], "type": "root"},
+            "nodes": [],
+            "edges": [],
+        }
+
+    print("\n[PIPELINE] Pipeline execution complete!")
+    print("[PIPELINE] Total API calls: 2 (unified analysis + mindmap)")
+    print("=" * 70 + "\n")
 
     return {
         "meeting_details": meeting_details,
-        "segments": segments,
-        "segment_summaries": segment_summaries,
         "collective_summary": collective_summary,
-        "hats": hats_data.get("hats", []),
+        "hats": hats,
         "chapters": chapters,
-        "mindmap": mindmap
+        "timeline": timeline,
+        "mindmap": mindmap,
     }
+

@@ -8,7 +8,10 @@
       "Bash(pip install:*)",
       "Bash(curl:*)",
       "Bash(cat:*)",
-      "Bash(.env)"
+      "Bash(.env)",
+      "Bash(python -m pip:*)",
+      "Bash(python:*)",
+      "Bash(timeout 5 python:*)"
     ],
     "deny": [],
     "ask": []

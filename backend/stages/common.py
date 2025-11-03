@@ -12,11 +12,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------- Defaults / Tunables ----------
-DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL") or os.getenv("AZURE_AI_DEPLOYMENT", "grok-4-fast-reasoning")
-MAX_CHARS = int(os.getenv("SEGMENTS_MAX_CHARS", "14000"))
-COLLECTIVE_MAX_CHARS = int(os.getenv("SEGMENTS_COLLECTIVE_MAX_CHARS", "16000"))
-ITEMS_MAX_CHARS = int(os.getenv("SEGMENTS_ITEMS_MAX_CHARS", "16000"))
-CHAPTERS_MAX_CHARS = int(os.getenv("SEGMENTS_CHAPTERS_MAX_CHARS", "20000"))
+DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL") or os.getenv("AZURE_AI_DEPLOYMENT", "gpt-5-nano")
+
+# Character limits removed for unified architecture
+# No need to truncate or limit input size - modern models have large context windows
+# Old limits (for reference):
+# MAX_CHARS = 14000, COLLECTIVE_MAX_CHARS = 16000, ITEMS_MAX_CHARS = 16000, CHAPTERS_MAX_CHARS = 20000
 
 BAD_MODEL_LITERALS = {"string", "model", ""}
 
@@ -102,19 +103,22 @@ async def call_ollama_cloud_async(
     payload = {
         "model": deployment,  # Deployment name goes here
         "messages": messages,
-        "temperature": 0.1,
-        "max_tokens": 4000,
+        "max_completion_tokens": 16000,  # GPT-5 Nano uses max_completion_tokens instead of max_tokens
     }
 
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
 
     try:
+        # Calculate and log request size
+        import json as json_lib
+        payload_size = len(json_lib.dumps(payload))
         print(f"[DEBUG] Calling Azure AI with URL: {url}")
         print(f"[DEBUG] Deployment: {deployment}")
-        print(f"[DEBUG] Payload keys: {payload.keys()}")
+        print(f"[DEBUG] Payload size: {payload_size:,} bytes")
+        print(f"[DEBUG] Timeout: 300 seconds (5 minutes)")
 
-        async with httpx.AsyncClient(timeout=180.0) as client:  # Increased timeout for reasoning model
+        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minutes timeout for large meetings with reasoning model
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()

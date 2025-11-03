@@ -2,6 +2,7 @@ import { Chapter } from '@/types/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { BookOpen } from 'lucide-react';
 import { Badge } from '../ui/badge';
+import ReactMarkdown from 'react-markdown';
 
 interface ChaptersListProps {
   chapters: Chapter[];
@@ -31,9 +32,15 @@ export function ChaptersList({ chapters }: ChaptersListProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                {chapter.summary}
-              </p>
+              <div className="prose prose-sm max-w-none dark:prose-invert
+                prose-p:text-sm prose-p:leading-relaxed prose-p:my-2
+                prose-strong:font-semibold prose-strong:text-foreground
+                prose-em:italic
+                prose-ul:list-disc prose-ul:my-2 prose-ul:pl-4
+                prose-ol:list-decimal prose-ol:my-2 prose-ol:pl-4
+                prose-li:my-1">
+                <ReactMarkdown>{chapter.summary}</ReactMarkdown>
+              </div>
             </CardContent>
           </Card>
         ))

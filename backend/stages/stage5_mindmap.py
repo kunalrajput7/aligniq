@@ -2,10 +2,23 @@
 Stage 5: Extract mindmap structure from meeting analysis.
 """
 from __future__ import annotations
-import json
+
 import asyncio
-from typing import List, Dict, Any, Optional
-from .common import _resolve_model, _truncate, COLLECTIVE_MAX_CHARS, call_ollama_cloud_async
+import json
+from typing import Any, Dict, List, Optional
+
+from .common import _resolve_model, call_ollama_cloud_async
+
+CONFIDENCE_KEYWORDS = {
+    "very high": 0.95,
+    "high": 0.9,
+    "medium": 0.6,
+    "mid": 0.6,
+    "moderate": 0.6,
+    "low": 0.35,
+    "very low": 0.2,
+    "uncertain": 0.35,
+}
 
 
 MINDMAP_PROMPT = """You are an expert meeting analyst creating a hierarchical mindmap structure.
@@ -119,6 +132,50 @@ INPUT:
 """
 
 
+def _clean_string(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
+def _coerce_confidence(value: Any, default: float = 0.8) -> float:
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+    elif isinstance(value, str):
+        s = value.strip().lower()
+        if not s:
+            return default
+        if s in CONFIDENCE_KEYWORDS:
+            return CONFIDENCE_KEYWORDS[s]
+        s = s.replace("%", "")
+        try:
+            numeric = float(s)
+        except ValueError:
+            return default
+    else:
+        return default
+
+    if numeric > 1:
+        numeric = numeric / 100 if numeric > 100 else min(numeric, 1.0)
+    if numeric < 0:
+        numeric = 0.0
+    return max(0.0, min(numeric, 1.0))
+
+
+def _format_timestamp_ms(ms: Any) -> str:
+    try:
+        ms_int = int(float(ms))
+    except (TypeError, ValueError):
+        return ""
+
+    seconds_total = ms_int // 1000
+    seconds = seconds_total % 60
+    minutes = (seconds_total // 60) % 60
+    hours = seconds_total // 3600
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 def _bundle_for_mindmap(
     chapters: List[Dict[str, Any]],
     collective_summary: Dict[str, Any]
@@ -165,8 +222,7 @@ def _bundle_for_mindmap(
         lines.append(f"- {blocker} (Raised by: {member}, Owner: {owner}, Time: {timestamp})")
 
     text = "\n".join(lines)
-    if len(text) > COLLECTIVE_MAX_CHARS:
-        text = _truncate(text, COLLECTIVE_MAX_CHARS)
+    # No truncation needed - modern models have large context windows
     return text
 
 
@@ -193,34 +249,61 @@ def _parse_json_mindmap(s: str) -> Dict[str, Any]:
     except Exception:
         obj = {}
 
-    # Parse center node
-    center_node = obj.get("center_node", {})
-    if not isinstance(center_node, dict):
-        center_node = {"id": "root", "label": "Meeting", "type": "root"}
+    raw_center = obj.get("center_node", {})
+    if not isinstance(raw_center, dict):
+        raw_center = {}
+    center_node = {
+        "id": _clean_string(raw_center.get("id"), "root") or "root",
+        "label": _clean_string(raw_center.get("label"), "Meeting") or "Meeting",
+        "type": _clean_string(raw_center.get("type"), "root") or "root",
+    }
 
-    # Parse nodes
-    nodes = []
+    nodes: List[Dict[str, Any]] = []
     for node in obj.get("nodes", []):
-        if isinstance(node, dict):
-            nodes.append({
-                "id": str(node.get("id", "")).strip(),
-                "label": str(node.get("label", "")).strip(),
-                "type": str(node.get("type", "topic")).strip(),
-                "parent_id": str(node.get("parent_id", "")).strip(),
-                "description": str(node.get("description", "")).strip(),
-                "timestamp": str(node.get("timestamp", "")).strip() or None,
-                "confidence": float(node.get("confidence", 0.8))
-            })
+        if not isinstance(node, dict):
+            continue
+        node_id = _clean_string(node.get("id"))
+        label = _clean_string(node.get("label"))
+        if not node_id or not label:
+            continue
+        node_type = _clean_string(node.get("type"), "topic") or "topic"
+        parent_id = _clean_string(node.get("parent_id"), "root") or "root"
+        description = _clean_string(node.get("description"))
+        timestamp_raw = node.get("timestamp")
+        if not timestamp_raw and node.get("timestamp_ms") is not None:
+            timestamp_raw = _format_timestamp_ms(node.get("timestamp_ms"))
+        timestamp = _clean_string(timestamp_raw)
+        timestamp_value = timestamp or None
+        confidence = _coerce_confidence(node.get("confidence"), default=0.8)
 
-    # Parse edges
-    edges = []
+        nodes.append(
+            {
+                "id": node_id,
+                "label": label,
+                "type": node_type,
+                "parent_id": parent_id,
+                "description": description,
+                "timestamp": timestamp_value,
+                "confidence": confidence,
+            }
+        )
+
+    edges: List[Dict[str, Any]] = []
     for edge in obj.get("edges", []):
-        if isinstance(edge, dict):
-            edges.append({
-                "from": str(edge.get("from", "")).strip(),
-                "to": str(edge.get("to", "")).strip(),
-                "type": str(edge.get("type", "hierarchy")).strip()
-            })
+        if not isinstance(edge, dict):
+            continue
+        source = _clean_string(edge.get("from"))
+        target = _clean_string(edge.get("to"))
+        if not source or not target:
+            continue
+        edge_type = _clean_string(edge.get("type"), "hierarchy") or "hierarchy"
+        edges.append(
+            {
+                "from": source,
+                "to": target,
+                "type": edge_type,
+            }
+        )
 
     return {
         "center_node": center_node,
