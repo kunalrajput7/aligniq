@@ -71,11 +71,15 @@ export interface Chapter {
 export interface MindmapNode {
   id: string;
   label: string;
-  type: 'root' | 'theme' | 'chapter' | 'claim' | 'topic' | 'decision' | 'action' | 'achievement' | 'blocker' | 'concern';
+  type: 'root' | 'theme' | 'chapter' | 'claim' | 'outcome';
+  kind?: 'decision' | 'action' | 'achievement' | 'blocker' | 'concern';  // Only for outcome nodes
   parent_id: string;
   description: string;
   timestamp: string | null;
   confidence: number;
+  owner?: string;  // For outcome nodes
+  due_date?: string;  // For outcome nodes
+  evidence?: Evidence[];  // For outcome nodes
 }
 
 export interface MindmapEdge {

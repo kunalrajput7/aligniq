@@ -21,13 +21,14 @@ import type { ReactFlowInstance } from 'reactflow';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import 'reactflow/dist/style.css';
 import { Mindmap, MindmapNode } from '@/types/api';
-import { Download } from 'lucide-react';
+import { Download, Gavel, CheckCircle2, Trophy, AlertCircle, Shield } from 'lucide-react';
 import jsPDF from 'jspdf';
 import './mindmap.css';
 
 type NodeData = {
   label: string;
   type: string;
+  kind?: string;  // For outcomes: "decision" | "action" | "achievement" | "blocker" | "concern"
   hasChildren: boolean;
   collapsed: boolean;
   onToggle: (id: string) => void;
@@ -35,29 +36,39 @@ type NodeData = {
   height: number;
 };
 
+// Simplified palette following Google's recommendations
 const palette: Record<string, string> = {
   root: '#4f46e5',
   theme: '#2563eb',
   chapter: '#7c3aed',
   claim: '#0ea5e9',
-  topic: '#6366f1',
-  decision: '#2563eb',
-  action: '#0ea5e9',
-  achievement: '#14b8a6',
-  blocker: '#ef4444',
-  concern: '#ea580c',
+  outcome: '#6366f1',  // Base color for all outcomes
+};
+
+// Outcome kind-specific colors for badges/accents
+const outcomeKindColors: Record<string, string> = {
+  decision: '#2563eb',  // Blue - gavel
+  action: '#0ea5e9',    // Cyan - check
+  achievement: '#14b8a6', // Teal - trophy
+  blocker: '#ef4444',   // Red - alert
+  concern: '#ea580c',   // Orange - shield/question
 };
 
 const NODE_SIZE: Record<string, { width: number; height: number }> = {
-  root: { width: 280, height: 96 },
-  theme: { width: 240, height: 90 },
-  chapter: { width: 230, height: 86 },
-  claim: { width: 220, height: 82 },
-  action: { width: 230, height: 86 },
-  achievement: { width: 230, height: 86 },
-  blocker: { width: 230, height: 86 },
-  decision: { width: 230, height: 86 },
-  concern: { width: 230, height: 86 },
+  root: { width: 300, height: 100 },
+  theme: { width: 260, height: 95 },
+  chapter: { width: 250, height: 90 },
+  claim: { width: 240, height: 85 },
+  outcome: { width: 250, height: 90 },  // Unified outcome size
+};
+
+// Icon mapping for outcome kinds (following Google's recommendations)
+const outcomeIcons: Record<string, React.ElementType> = {
+  decision: Gavel,
+  action: CheckCircle2,
+  achievement: Trophy,
+  blocker: AlertCircle,
+  concern: Shield,
 };
 
 const elk = new ELK();
@@ -76,15 +87,24 @@ interface MindmapCanvasProps {
 }
 
 const MindmapNodeCard = memo<NodeProps<NodeData>>(({ data, id }) => {
-  const { label, type, hasChildren, collapsed, onToggle, width, height } = data;
-  const color = palette[type] ?? palette.theme;
-  const gradient = `linear-gradient(135deg, ${color}F2, ${color}D0)`;
-  const borderColor = `${color}80`;
+  const { label, type, kind, hasChildren, collapsed, onToggle, width, height } = data;
+
+  // For outcomes, use the kind-specific color for the badge; base color for node
+  const isOutcome = type === 'outcome' && kind;
+  const baseColor = palette[type] ?? palette.theme;
+  const accentColor = isOutcome && kind ? outcomeKindColors[kind] : baseColor;
+
+  const gradient = `linear-gradient(135deg, ${baseColor}F2, ${baseColor}D0)`;
+  const borderColor = `${accentColor}80`;
+
+  // Get icon for outcomes
+  const OutcomeIcon = isOutcome && kind ? outcomeIcons[kind] : null;
 
   return (
     <div
       className="mindmap-node"
       data-type={type}
+      data-kind={kind}
       style={{ background: gradient, borderColor, width, minHeight: height }}
     >
       <Handle
@@ -98,11 +118,19 @@ const MindmapNodeCard = memo<NodeProps<NodeData>>(({ data, id }) => {
         }}
         isConnectable={false}
       />
-      <div className="mindmap-node-label">{label}</div>
+      <div className="mindmap-node-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {OutcomeIcon && (
+          <OutcomeIcon
+            size={16}
+            style={{ color: accentColor, flexShrink: 0 }}
+          />
+        )}
+        <span>{label}</span>
+      </div>
       {hasChildren && (
         <button
           className="mindmap-node-toggle"
-          style={{ color }}
+          style={{ color: accentColor }}
           onClick={(event) => {
             event.stopPropagation();
             onToggle(id);
@@ -222,6 +250,7 @@ const buildGraph = (
       data: {
         label: node.label,
         type: node.type,
+        kind: node.kind,  // Pass kind field for outcome nodes
         hasChildren,
         collapsed: collapsed.has(node.id),
         onToggle,
@@ -259,9 +288,9 @@ const layoutGraph = async (nodes: Node<NodeData>[], edges: Edge[]) => {
     })),
   };
 
-  const { children } = await elk.layout(graph);
+  const layoutResult = await elk.layout(graph);
   const positions = Object.fromEntries(
-    children.map((child: any) => [
+    (layoutResult.children ?? []).map((child: any) => [
       child.id,
       { x: child.x ?? 0, y: child.y ?? 0 },
     ])
@@ -409,13 +438,11 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
           const instance = reactFlowRef.current;
           if (!instance) return;
           const currentZoom = instance.getZoom();
+          // Scroll up (deltaY < 0) = zoom in, Scroll down (deltaY > 0) = zoom out
           const delta = event.deltaY > 0 ? -0.18 : 0.18;
           const nextZoom = Math.min(2.5, Math.max(0.35, currentZoom + delta));
           instance.zoomTo(nextZoom, {
             duration: 180,
-            easing: (t) => 1 - Math.pow(1 - t, 3),
-            x: event.clientX,
-            y: event.clientY,
           });
         }}
       >

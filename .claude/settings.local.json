@@ -11,7 +11,8 @@
       "Bash(.env)",
       "Bash(python -m pip:*)",
       "Bash(python:*)",
-      "Bash(timeout 5 python:*)"
+      "Bash(timeout 5 python:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

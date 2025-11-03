@@ -23,10 +23,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from .common import _fmt_local
 
-THEME_LIMIT_DEFAULT = 6
-CLAIMS_PER_THEME = 3
-OUTCOMES_PER_THEME = 2
-MIN_CLAIM_WORDS = 7
+THEME_LIMIT_DEFAULT = 4  # Reduced from 6 to 4 themes for cleaner mindmap
+CLAIMS_PER_THEME = 2      # Reduced from 3 to 2 claims per theme
+OUTCOMES_PER_THEME = 2    # Keep at 2 outcomes per theme
+MIN_CLAIM_WORDS = 10      # Increased from 7 to 10 to filter out shorter claims
 
 OUTCOME_TYPE_WEIGHT = {
     "decision": 220,
@@ -622,7 +622,7 @@ class CoverageMindmapBuilder:
                         chapters_seen[key] = node_id
                     parent_id = chapters_seen[key]
 
-                claim_label = claim.text[:80] + ("…" if len(claim.text) > 80 else "")
+                claim_label = claim.text[:90] + ("…" if len(claim.text) > 90 else "")
                 nodes.append(
                     {
                         "id": claim.id,
@@ -636,21 +636,33 @@ class CoverageMindmapBuilder:
                 )
 
             # Outcome nodes living directly under the theme
+            # Following Google's recommendation: merge decision/action/achievement/blocker/concern into single "outcome" type
             for outcome in self.outcomes:
                 if outcome.theme_id != theme.id:
                     continue
-                outcome_label = self._outcome_label(outcome)
-                nodes.append(
-                    {
-                        "id": outcome.id,
-                        "label": outcome_label,
-                        "type": outcome.type,
-                        "parent_id": theme.id,
-                        "description": outcome.description[:500],
-                        "timestamp": _format_ms(outcome.time_hint_ms),
-                        "confidence": min(0.95, outcome.confidence),
-                    }
-                )
+                outcome_label = outcome.title[:85] + ("…" if len(outcome.title) > 85 else "")
+
+                # Build outcome node with unified "outcome" type and a "kind" field
+                outcome_node = {
+                    "id": outcome.id,
+                    "label": outcome_label,
+                    "type": "outcome",  # Unified type
+                    "kind": outcome.type,  # Subtype: decision/action/achievement/blocker/concern
+                    "parent_id": theme.id,
+                    "description": outcome.description[:500],
+                    "timestamp": _format_ms(outcome.time_hint_ms),
+                    "confidence": min(0.95, outcome.confidence),
+                }
+
+                # Add optional fields
+                if outcome.owner:
+                    outcome_node["owner"] = outcome.owner
+                if outcome.deadline:
+                    outcome_node["due_date"] = outcome.deadline
+                if outcome.evidence:
+                    outcome_node["evidence"] = outcome.evidence[:2]  # Limit to 2 evidence items
+
+                nodes.append(outcome_node)
 
         graph = {
             "center_node": center_node,
