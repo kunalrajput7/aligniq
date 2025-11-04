@@ -26,8 +26,7 @@ app = FastAPI(
 allowed_origins = [
     "http://localhost:3000",  # Local development
     "http://localhost:3001",  # Alternative local port
-    # Add your Vercel production URL after deployment:
-    # "https://summer-ai-studio.vercel.app/",
+    "https://summer-ai-studio.vercel.app/",
     # "https://your-custom-domain.com",
 ]
 
