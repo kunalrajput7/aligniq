@@ -18,7 +18,7 @@ const renderMarkdownToPDF = (
   y: number,
   maxWidth: number,
   lineHeight: number,
-  ensureSpace: (h: number) => void
+  ensureSpace: (currentY: number, neededHeight: number) => number
 ): number => {
   if (!text || !text.trim()) return y;
 
@@ -37,7 +37,7 @@ const renderMarkdownToPDF = (
     // Check for H2 heading (##)
     const h2Match = line.match(/^##\s+(.+)$/);
     if (h2Match) {
-      ensureSpace(12);
+      cursorY = ensureSpace(cursorY, 12);
       cursorY += 3;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
@@ -49,7 +49,7 @@ const renderMarkdownToPDF = (
     // Check for H3 heading (###)
     const h3Match = line.match(/^###\s+(.+)$/);
     if (h3Match) {
-      ensureSpace(10);
+      cursorY = ensureSpace(cursorY, 10);
       cursorY += 2;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
@@ -64,13 +64,21 @@ const renderMarkdownToPDF = (
       const bulletIndent = x + 5;
       const bulletText = bulletMatch[1];
 
-      ensureSpace(lineHeight);
+      cursorY = ensureSpace(cursorY, lineHeight);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.text('•', bulletIndent - 3, cursorY);
 
       // Process bold/italic in bullet text
-      const textLines = processBoldItalic(doc, bulletText, bulletIndent, cursorY, maxWidth - 5, lineHeight, ensureSpace);
+      const textLines = processBoldItalic(
+        doc,
+        bulletText,
+        bulletIndent,
+        cursorY,
+        maxWidth - 5,
+        lineHeight,
+        ensureSpace
+      );
       cursorY = textLines;
       cursorY += 2;
       return;
@@ -92,7 +100,7 @@ const processBoldItalic = (
   y: number,
   maxWidth: number,
   lineHeight: number,
-  ensureSpace: (h: number) => void
+  ensureSpace: (currentY: number, neededHeight: number) => number
 ): number => {
   let cursorY = y;
   let cursorX = x;
@@ -167,7 +175,7 @@ const processBoldItalic = (
 
       if (testWidth > maxWidth - (cursorX - x) && currentLine) {
         // Line is full, print it
-        ensureSpace(lineHeight);
+        cursorY = ensureSpace(cursorY, lineHeight);
         doc.text(currentLine, cursorX, cursorY);
         cursorY += lineHeight;
         cursorX = x;
@@ -179,7 +187,7 @@ const processBoldItalic = (
 
     // Print remaining text
     if (currentLine) {
-      ensureSpace(lineHeight);
+      cursorY = ensureSpace(cursorY, lineHeight);
       doc.text(currentLine, cursorX, cursorY);
       cursorX += doc.getTextWidth(currentLine) + doc.getTextWidth(' ');
 
@@ -193,6 +201,7 @@ const processBoldItalic = (
 
   // Move to next line if we wrote anything
   if (cursorX > x) {
+    cursorY = ensureSpace(cursorY, lineHeight);
     cursorY += lineHeight;
   }
 
@@ -252,11 +261,13 @@ export default function Home() {
     const textWidth = pageWidth - margin * 2;
     let cursorY = margin;
 
-    const ensureSpace = (height: number) => {
-      if (cursorY + height > pageHeight - margin) {
+    const ensureSpace = (currentY: number, neededHeight: number) => {
+      if (currentY + neededHeight > pageHeight - margin) {
         doc.addPage();
         cursorY = margin;
+        return cursorY;
       }
+      return currentY;
     };
 
     //====== HEADER ======
@@ -281,7 +292,7 @@ export default function Home() {
     cursorY += 10;
 
     //====== OVERVIEW ======
-    ensureSpace(15);
+    cursorY = ensureSpace(cursorY, 15);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text('Overview', margin, cursorY);
@@ -299,7 +310,7 @@ export default function Home() {
     cursorY += 5;
 
     //====== ACTION ITEMS ======
-    ensureSpace(15);
+    cursorY = ensureSpace(cursorY, 15);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text("Action Items", margin, cursorY);
@@ -313,12 +324,12 @@ export default function Home() {
       cursorY += lineHeight;
     } else {
       tasks.forEach((task) => {
-        ensureSpace(12);
+        cursorY = ensureSpace(cursorY, 12);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
         const taskLines = doc.splitTextToSize(`• ${task.task || 'Untitled task'}`, textWidth - 3);
         taskLines.forEach((line: string) => {
-          ensureSpace(lineHeight);
+          cursorY = ensureSpace(cursorY, lineHeight);
           doc.text(line, margin + 3, cursorY);
           cursorY += lineHeight;
         });
@@ -340,7 +351,7 @@ export default function Home() {
     cursorY += 5;
 
     //====== ACHIEVEMENTS ======
-    ensureSpace(15);
+    cursorY = ensureSpace(cursorY, 15);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text('Achievements', margin, cursorY);
@@ -357,12 +368,12 @@ export default function Home() {
         const text = achievement.achievement || '';
         if (!text.trim()) return;
 
-        ensureSpace(10);
+        cursorY = ensureSpace(cursorY, 10);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         const lines = doc.splitTextToSize(`• ${text}`, textWidth - 3);
         lines.forEach((line: string) => {
-          ensureSpace(lineHeight);
+          cursorY = ensureSpace(cursorY, lineHeight);
           doc.text(line, margin + 3, cursorY);
           cursorY += lineHeight;
         });
@@ -372,7 +383,7 @@ export default function Home() {
     cursorY += 5;
 
     //====== BLOCKERS ======
-    ensureSpace(15);
+    cursorY = ensureSpace(cursorY, 15);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text('Blockers', margin, cursorY);
@@ -389,12 +400,12 @@ export default function Home() {
         const text = blocker.blocker || '';
         if (!text.trim()) return;
 
-        ensureSpace(10);
+        cursorY = ensureSpace(cursorY, 10);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         const lines = doc.splitTextToSize(`• ${text}`, textWidth - 3);
         lines.forEach((line: string) => {
-          ensureSpace(lineHeight);
+          cursorY = ensureSpace(cursorY, lineHeight);
           doc.text(line, margin + 3, cursorY);
           cursorY += lineHeight;
         });
@@ -404,7 +415,7 @@ export default function Home() {
     cursorY += 5;
 
     //====== CHAPTERS ======
-    ensureSpace(15);
+    cursorY = ensureSpace(cursorY, 15);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text('Chapters', margin, cursorY);
@@ -418,7 +429,7 @@ export default function Home() {
       cursorY += lineHeight;
     } else {
       chapters.forEach((chapter, index) => {
-        ensureSpace(15);
+        cursorY = ensureSpace(cursorY, 15);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
         doc.text(`${index + 1}. ${chapter.title || 'Untitled Chapter'}`, margin, cursorY);
