@@ -29,8 +29,19 @@ const ubuntu = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Meeting Summarizer - AI-Powered Meeting Analysis",
+  title: "Summer AI Studio",
   description: "Analyze and summarize your meeting transcripts with AI",
+   icons: {
+    icon: [
+      { url: "/logo.jpg", type: "image/png", sizes: "32x32" },   // small tab icon
+      { url: "/logo.jpg", type: "image/png", sizes: "192x192" }, // PWA/Android
+      { url: "/logo.jpg", type: "image/png", sizes: "512x512" }, // large
+    ],
+    shortcut: "/logo.jpg",
+    apple: [
+      { url: "/logo.jpg", sizes: "180x180" }, // iOS home screen icon
+    ],
+  },
 };
 
 export default function RootLayout({
