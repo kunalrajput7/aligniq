@@ -10,25 +10,193 @@ import { ArrowLeft, FileDown, Loader2, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 
-const stripMarkdown = (input: string): string => {
-  if (!input) {
-    return '';
+// Render markdown text with proper formatting in PDF
+const renderMarkdownToPDF = (
+  doc: any,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  ensureSpace: (h: number) => void
+): number => {
+  if (!text || !text.trim()) return y;
+
+  let cursorY = y;
+  const lines = text.split('\n');
+
+  lines.forEach((line) => {
+    line = line.trim();
+
+    // Empty line - add small space
+    if (!line) {
+      cursorY += lineHeight * 0.5;
+      return;
+    }
+
+    // Check for H2 heading (##)
+    const h2Match = line.match(/^##\s+(.+)$/);
+    if (h2Match) {
+      ensureSpace(12);
+      cursorY += 3;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(h2Match[1], x, cursorY);
+      cursorY += lineHeight + 4;
+      return;
+    }
+
+    // Check for H3 heading (###)
+    const h3Match = line.match(/^###\s+(.+)$/);
+    if (h3Match) {
+      ensureSpace(10);
+      cursorY += 2;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text(h3Match[1], x, cursorY);
+      cursorY += lineHeight + 3;
+      return;
+    }
+
+    // Check for bullet point
+    const bulletMatch = line.match(/^[-•*]\s+(.+)$/);
+    if (bulletMatch) {
+      const bulletIndent = x + 5;
+      const bulletText = bulletMatch[1];
+
+      ensureSpace(lineHeight);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('•', bulletIndent - 3, cursorY);
+
+      // Process bold/italic in bullet text
+      const textLines = processBoldItalic(doc, bulletText, bulletIndent, cursorY, maxWidth - 5, lineHeight, ensureSpace);
+      cursorY = textLines;
+      cursorY += 2;
+      return;
+    }
+
+    // Regular paragraph - process bold/italic
+    cursorY = processBoldItalic(doc, line, x, cursorY, maxWidth, lineHeight, ensureSpace);
+    cursorY += 3;
+  });
+
+  return cursorY;
+};
+
+// Process text with **bold** and *italic* formatting
+const processBoldItalic = (
+  doc: any,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  ensureSpace: (h: number) => void
+): number => {
+  let cursorY = y;
+  let cursorX = x;
+
+  // Parse text into segments with formatting
+  const segments: Array<{text: string, bold: boolean, italic: boolean}> = [];
+  let pos = 0;
+
+  // Pattern to match **bold** or *italic*
+  const regex = /(\*\*([^*]+)\*\*|\*([^*]+)\*)/g;
+  let match;
+  let lastIndex = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add plain text before match
+    if (match.index > lastIndex) {
+      segments.push({
+        text: text.substring(lastIndex, match.index),
+        bold: false,
+        italic: false
+      });
+    }
+
+    // Add formatted text
+    if (match[2]) {
+      // **bold**
+      segments.push({ text: match[2], bold: true, italic: false });
+    } else if (match[3]) {
+      // *italic*
+      segments.push({ text: match[3], bold: false, italic: true });
+    }
+
+    lastIndex = match.index + match[0].length;
   }
 
-  return input
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/\*(.*?)\*/g, '$1')
-    .replace(/__([^_]+)__/g, '$1')
-    .replace(/_([^_]+)_/g, '$1')
-    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
-    .replace(/^#{1,6}\s*(.*)$/gm, '$1')
-    .replace(/^\s*[-*+]\s+/gm, '- ')
-    .replace(/>\s?/g, '')
-    .replace(/\r/g, '')
-    .replace(/\n{2,}/g, '\n')
-    .trim();
+  // Add remaining text
+  if (lastIndex < text.length) {
+    segments.push({
+      text: text.substring(lastIndex),
+      bold: false,
+      italic: false
+    });
+  }
+
+  // If no formatting found, treat as plain text
+  if (segments.length === 0) {
+    segments.push({ text, bold: false, italic: false });
+  }
+
+  // Render segments
+  doc.setFontSize(10);
+
+  segments.forEach((segment) => {
+    if (!segment.text) return;
+
+    // Set font style
+    if (segment.bold) {
+      doc.setFont('helvetica', 'bold');
+    } else if (segment.italic) {
+      doc.setFont('helvetica', 'italic');
+    } else {
+      doc.setFont('helvetica', 'normal');
+    }
+
+    // Split text to fit width
+    const words = segment.text.split(' ');
+    let currentLine = '';
+
+    words.forEach((word, idx) => {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = doc.getTextWidth(testLine);
+
+      if (testWidth > maxWidth - (cursorX - x) && currentLine) {
+        // Line is full, print it
+        ensureSpace(lineHeight);
+        doc.text(currentLine, cursorX, cursorY);
+        cursorY += lineHeight;
+        cursorX = x;
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    });
+
+    // Print remaining text
+    if (currentLine) {
+      ensureSpace(lineHeight);
+      doc.text(currentLine, cursorX, cursorY);
+      cursorX += doc.getTextWidth(currentLine) + doc.getTextWidth(' ');
+
+      // Check if we need to wrap to next line
+      if (cursorX > x + maxWidth) {
+        cursorY += lineHeight;
+        cursorX = x;
+      }
+    }
+  });
+
+  // Move to next line if we wrote anything
+  if (cursorX > x) {
+    cursorY += lineHeight;
+  }
+
+  return cursorY;
 };
 
 export default function Home() {
@@ -77,16 +245,12 @@ export default function Home() {
     }
 
     const doc = new jsPDF();
-    const margin = 14;
+    const margin = 20;
     const lineHeight = 6;
     const pageHeight = doc.internal.pageSize.getHeight();
-    const textWidth = doc.internal.pageSize.getWidth() - margin * 2;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const textWidth = pageWidth - margin * 2;
     let cursorY = margin;
-
-    const setBodyFont = () => {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-    };
 
     const ensureSpace = (height: number) => {
       if (cursorY + height > pageHeight - margin) {
@@ -95,179 +259,188 @@ export default function Home() {
       }
     };
 
-    const addParagraph = (text: string) => {
-      const cleaned = text.trim();
-      if (!cleaned) {
-        return;
-      }
-
-      const segments = cleaned
-        .split(/\n+/)
-        .map((segment) => segment.trim())
-        .filter(Boolean);
-
-      segments.forEach((segment) => {
-        const lines = doc.splitTextToSize(segment, textWidth);
-        lines.forEach((line) => {
-          ensureSpace(lineHeight);
-          setBodyFont();
-          doc.text(line, margin, cursorY);
-          cursorY += lineHeight;
-        });
-        cursorY += 2;
-      });
-    };
-
-    const addHeading = (text: string) => {
-      ensureSpace(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.text(text, margin, cursorY);
-      cursorY += 8;
-      setBodyFont();
-    };
-
-    const addMetaLine = (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) {
-        return;
-      }
-      const lines = doc.splitTextToSize(trimmed, textWidth);
-      lines.forEach((line) => {
-        ensureSpace(lineHeight);
-        setBodyFont();
-        doc.text(line, margin, cursorY);
-        cursorY += lineHeight;
-      });
-    };
-
+    //====== HEADER ======
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('Meeting Summary Report', margin, cursorY);
-    cursorY += 10;
-    setBodyFont();
+    doc.setFontSize(20);
+    doc.text('Meeting Summary', margin, cursorY);
+    cursorY += 12;
 
-    addMetaLine(`Title: ${data.meeting_details.title || 'N/A'}`);
-    addMetaLine(`Date: ${data.meeting_details.date || 'N/A'}`);
-    addMetaLine(`Duration: ${formatDuration(data.meeting_details.duration_ms)}`);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Title: ${data.meeting_details.title || 'N/A'}`, margin, cursorY);
+    cursorY += 5;
+    doc.text(`Date: ${data.meeting_details.date || 'N/A'}`, margin, cursorY);
+    cursorY += 5;
+    doc.text(`Duration: ${formatDuration(data.meeting_details.duration_ms)}`, margin, cursorY);
+    cursorY += 5;
     const participantLine =
       data.meeting_details.participants && data.meeting_details.participants.length
         ? data.meeting_details.participants.join(', ')
         : 'N/A';
-    addMetaLine(`Participants: ${participantLine}`);
-    cursorY += 4;
+    doc.text(`Participants: ${participantLine}`, margin, cursorY);
+    cursorY += 10;
 
-    addHeading('Overview');
-    const overviewText = stripMarkdown(data.collective_summary?.narrative_summary || '');
+    //====== OVERVIEW ======
+    ensureSpace(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Overview', margin, cursorY);
+    cursorY += 8;
+
+    const overviewText = data.collective_summary?.narrative_summary || '';
     if (overviewText) {
-      addParagraph(overviewText);
+      cursorY = renderMarkdownToPDF(doc, overviewText, margin, cursorY, textWidth, lineHeight, ensureSpace);
     } else {
-      addParagraph('No overview available.');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('No overview available.', margin, cursorY);
+      cursorY += lineHeight;
     }
-    cursorY += 2;
+    cursorY += 5;
 
-    addHeading("To-Do's");
+    //====== ACTION ITEMS ======
+    ensureSpace(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text("Action Items", margin, cursorY);
+    cursorY += 8;
+
     const tasks = data.collective_summary?.action_items ?? [];
     if (!tasks.length) {
-      addParagraph('No action items documented.');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('No action items documented.', margin, cursorY);
+      cursorY += lineHeight;
     } else {
       tasks.forEach((task) => {
-        const taskLabel = task.task?.trim() || 'Untitled task';
-        const taskLines = doc.splitTextToSize(`- ${taskLabel}`, textWidth);
+        ensureSpace(12);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        taskLines.forEach((line) => {
+        doc.setFontSize(10);
+        const taskLines = doc.splitTextToSize(`• ${task.task || 'Untitled task'}`, textWidth - 3);
+        taskLines.forEach((line: string) => {
           ensureSpace(lineHeight);
-          doc.text(line, margin, cursorY);
+          doc.text(line, margin + 3, cursorY);
           cursorY += lineHeight;
         });
-        setBodyFont();
 
         const detailParts: string[] = [];
         if (task.owner) detailParts.push(`Owner: ${task.owner}`);
-        if (task.deadline) detailParts.push(`Deadline: ${task.deadline}`);
+        if (task.deadline) detailParts.push(`Due: ${task.deadline}`);
         if (task.status) detailParts.push(`Status: ${task.status}`);
 
         if (detailParts.length) {
-          const detailText = `  • ${detailParts.join(' | ')}`;
-          const detailLines = doc.splitTextToSize(detailText, textWidth);
-          detailLines.forEach((line) => {
-            ensureSpace(lineHeight);
-            doc.text(line, margin + 4, cursorY);
-            cursorY += lineHeight;
-          });
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(9);
+          doc.text(`  ${detailParts.join(' | ')}`, margin + 3, cursorY);
+          cursorY += lineHeight;
         }
-        cursorY += 2;
+        cursorY += 3;
       });
     }
-    cursorY += 2;
+    cursorY += 5;
 
-    addHeading('Achievements');
+    //====== ACHIEVEMENTS ======
+    ensureSpace(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Achievements', margin, cursorY);
+    cursorY += 8;
+
     const achievements = data.collective_summary?.achievements ?? [];
     if (!achievements.length) {
-      addParagraph('No achievements recorded.');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('No achievements recorded.', margin, cursorY);
+      cursorY += lineHeight;
     } else {
       achievements.forEach((achievement) => {
-        const text = stripMarkdown(achievement.achievement || '').trim();
-        if (!text) {
-          return;
-        }
-        const lines = doc.splitTextToSize(`- ${text}`, textWidth);
-        lines.forEach((line) => {
+        const text = achievement.achievement || '';
+        if (!text.trim()) return;
+
+        ensureSpace(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(`• ${text}`, textWidth - 3);
+        lines.forEach((line: string) => {
           ensureSpace(lineHeight);
-          doc.text(line, margin, cursorY);
+          doc.text(line, margin + 3, cursorY);
           cursorY += lineHeight;
         });
         cursorY += 2;
       });
     }
-    cursorY += 2;
+    cursorY += 5;
 
-    addHeading('Blockers');
+    //====== BLOCKERS ======
+    ensureSpace(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Blockers', margin, cursorY);
+    cursorY += 8;
+
     const blockers = data.collective_summary?.blockers ?? [];
     if (!blockers.length) {
-      addParagraph('No blockers identified.');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('No blockers identified.', margin, cursorY);
+      cursorY += lineHeight;
     } else {
       blockers.forEach((blocker) => {
-        const text = stripMarkdown(blocker.blocker || '').trim();
-        if (!text) {
-          return;
-        }
-        const lines = doc.splitTextToSize(`- ${text}`, textWidth);
-        lines.forEach((line) => {
+        const text = blocker.blocker || '';
+        if (!text.trim()) return;
+
+        ensureSpace(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(`• ${text}`, textWidth - 3);
+        lines.forEach((line: string) => {
           ensureSpace(lineHeight);
-          doc.text(line, margin, cursorY);
+          doc.text(line, margin + 3, cursorY);
           cursorY += lineHeight;
         });
         cursorY += 2;
       });
     }
-    cursorY += 2;
+    cursorY += 5;
 
-    addHeading('Chapters');
+    //====== CHAPTERS ======
+    ensureSpace(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Chapters', margin, cursorY);
+    cursorY += 8;
+
     const chapters = data.chapters ?? [];
     if (!chapters.length) {
-      addParagraph('No chapters available.');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('No chapters available.', margin, cursorY);
+      cursorY += lineHeight;
     } else {
       chapters.forEach((chapter, index) => {
-        ensureSpace(lineHeight);
+        ensureSpace(15);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
         doc.text(`${index + 1}. ${chapter.title || 'Untitled Chapter'}`, margin, cursorY);
-        cursorY += lineHeight;
-        setBodyFont();
+        cursorY += 7;
 
-        const summaryText = stripMarkdown(chapter.summary || '');
+        const summaryText = chapter.summary || '';
         if (summaryText) {
-          addParagraph(summaryText);
+          cursorY = renderMarkdownToPDF(doc, summaryText, margin, cursorY, textWidth, lineHeight, ensureSpace);
         } else {
-          addParagraph('No summary provided for this chapter.');
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.text('No summary provided for this chapter.', margin, cursorY);
+          cursorY += lineHeight;
         }
-        cursorY += 2;
+        cursorY += 5;
       });
     }
 
-    doc.save('meeting-summary.pdf');
+    // Generate filename from meeting title with underscores
+    const meetingTitle = data.meeting_details.title || 'Meeting_Summary';
+    const filename = meetingTitle.trim().replace(/\s+/g, '_') + '.pdf';
+    doc.save(filename);
   };
 
   const handleUploadButtonClick = () => {

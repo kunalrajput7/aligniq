@@ -47,15 +47,15 @@ const palette: Record<string, string> = {
 };
 
 const NODE_SIZE: Record<string, { width: number; height: number }> = {
-  root: { width: 280, height: 96 },
-  theme: { width: 240, height: 90 },
-  chapter: { width: 230, height: 86 },
-  claim: { width: 220, height: 82 },
-  action: { width: 230, height: 86 },
-  achievement: { width: 230, height: 86 },
-  blocker: { width: 230, height: 86 },
-  decision: { width: 230, height: 86 },
-  concern: { width: 230, height: 86 },
+  root: { width: 400, height: 120 },
+  theme: { width: 350, height: 100 },
+  chapter: { width: 350, height: 100 },
+  claim: { width: 350, height: 100 },
+  action: { width: 350, height: 100 },
+  achievement: { width: 350, height: 100 },
+  blocker: { width: 350, height: 100 },
+  decision: { width: 350, height: 100 },
+  concern: { width: 350, height: 100 },
 };
 
 const elk = new ELK();
@@ -83,7 +83,7 @@ const MindmapNodeCard = memo<NodeProps<NodeData>>(({ data, id }) => {
     <div
       className="mindmap-node"
       data-type={type}
-      style={{ background: gradient, borderColor, width, minHeight: height }}
+      style={{ background: gradient, borderColor, width, minHeight: height, height: 'auto' }}
     >
       <Handle
         type="target"
@@ -351,26 +351,7 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
           });
         }}
       >
-        <Background gap={28} color="#d9e0ff" />
-        <div className="absolute top-4 right-4 bg-white/70 backdrop-blur-md p-3 rounded-lg border border-gray-200 shadow-sm z-10 max-w-xs">
-          <h4 className="text-xs font-semibold text-gray-700 mb-2">Node Types</h4>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.entries(palette).map(([type, color]) => (
-              <div key={type} className="flex items-center gap-1.5">
-                <div
-                  className="w-3 h-3 rounded shadow-sm flex-shrink-0"
-                  style={{
-                    background: `linear-gradient(90deg, ${color} 0%, ${color}aa 100%)`,
-                  }}
-                />
-                <span className="text-xs text-gray-600 font-medium capitalize truncate">
-                  {type}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
+        <Background gap={28} color="#8a95b8" />
       </ReactFlow>
     </div>
   );
