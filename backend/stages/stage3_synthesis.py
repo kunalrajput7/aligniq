@@ -63,21 +63,30 @@ async def run_synthesis_stage_async(
     blocker_summary = f"{len(blockers)} blockers/concerns documented"
 
     # Build prompt
-    system_prompt = """You are an expert meeting analyst specializing in narrative synthesis and storytelling.
+    system_prompt = """You are an expert meeting analyst specializing in structured markdown documentation.
 
 Your task is to:
-1. Create a comprehensive EXECUTIVE SUMMARY in rich markdown format
+1. Create a comprehensive EXECUTIVE SUMMARY in STRUCTURED MARKDOWN with BULLET POINTS
 2. Write detailed 3-5 paragraph SUMMARIES for each chapter
 
-**CRITICAL INSTRUCTIONS:**
-- Action items, achievements, and blockers are ALREADY EXTRACTED and structured separately
-- DO NOT create standalone bullet lists of them in the narrative
-- Reference them naturally when providing context (e.g., "Several deployment tasks were assigned...")
-- Focus on the STORY, FLOW, and CONTEXT of the meeting
-- Use proper markdown formatting: ##, **bold**, bullet points
-- Make it readable and comprehensive"""
+**CRITICAL FORMATTING REQUIREMENTS:**
+- ✅ MUST use bullet points (-) for all lists - this is MANDATORY
+- ✅ DO NOT write flowing paragraph text under topic sections
+- ✅ Each bullet = one specific, concrete point with details (names, dates, numbers)
+- ✅ Use ## headings for topic subsections within Key Discussion Topics
+- ✅ Use **bold** for main section headers
+- ✅ Be specific: include WHO said/decided WHAT, WHEN, WHY, HOW
+
+**CONTENT INSTRUCTIONS:**
+- Action items, achievements, and blockers are ALREADY EXTRACTED - don't duplicate them
+- Reference them naturally if needed (e.g., "Bob was assigned deployment task")
+- Focus on SUBSTANCE: decisions, discussions, problems, solutions, technical details
+- Skip trivial details: connection issues, "can you hear me", setup problems
+- Make it comprehensive and detailed with concrete specifics"""
 
     user_prompt = f"""Analyze this meeting transcript and create narrative summaries.
+
+⚠️ IMPORTANT: The narrative_summary MUST use BULLET POINTS (-) for all lists. DO NOT write flowing paragraphs under topic sections. Follow the format EXACTLY as shown in the examples below.
 
 TRANSCRIPT:
 {full_transcript}
@@ -104,49 +113,98 @@ Provide a JSON response with the following EXACT structure:
 
 **NARRATIVE SUMMARY FORMAT:**
 
-The narrative_summary should be a comprehensive executive summary in MARKDOWN with the following structure:
+The narrative_summary MUST follow this EXACT structure. DO NOT write flowing paragraphs - use BULLET POINTS:
 
 ```markdown
 **Meeting Overview**
-2-3 sentences: What was this meeting about? What were the primary goals? Skip trivial details like connection issues.
+A brief 2-3 sentence paragraph describing the meeting's purpose and primary objectives. Skip trivial details like connection issues.
 
 **Key Discussion Topics**
-Break this into subsections with **Bold Topic Titles**:
+Break discussions into clear subsections with ## headings. Each topic MUST use bullet points:
 
 ## [Topic Name 1]
-- What was discussed about this topic
-- Key points, technical details, numbers, dates
-- Who contributed or led the discussion
-- Any decisions or conclusions reached
+- Specific point about what was discussed
+- Key technical details, numbers, dates, or metrics
+- Who led or contributed significantly to this discussion
+- Any decisions, conclusions, or outcomes from this topic
+- Additional relevant details or context
 
 ## [Topic Name 2]
-- What was discussed about this topic
-- Technical details and specifics
-- Contributors and their perspectives
-- Outcomes or next steps
+- Specific point about this topic area
+- Technical details and concrete specifics
+- Contributors and their key perspectives or proposals
+- Outcomes, next steps, or unresolved questions
+- Additional insights or connections to other topics
 
-(Continue for all major topics – typically 2-5 main topics)
+(Continue for all major topics – typically 2-5 main discussion areas)
 
 **Decisions Made**
-- List key decisions with decision-makers
-- Include context: why the decision was made
-- Note any conditions or dependencies
+- Decision 1: Brief description with who made it and why
+- Decision 2: Include context and rationale for the decision
+- Decision 3: Note any conditions, dependencies, or follow-up required
+- (Continue for all significant decisions)
 
 **Concerns & Challenges**
-- Surface risks, blockers, or challenges (briefly - they're detailed in structured blockers)
-- Proposed solutions or mitigation strategies
-- Unresolved concerns requiring follow-up
+- Concern 1: Brief description of the risk or challenge
+- Proposed solution or mitigation approach (if discussed)
+- Concern 2: Another risk or blocker mentioned
+- Any unresolved concerns requiring follow-up action
+- (Continue for all concerns raised)
 ```
 
-**IMPORTANT GUIDELINES FOR NARRATIVE SUMMARY:**
-1. Use **Bold** for section headers like **Meeting Overview**, **Decisions Made**
-2. Use ## for major topic subsections within Key Discussion Topics
-3. Use bullet points (-) for lists and sub-points
-4. Keep paragraphs short (2-4 sentences max)
-5. Skip trivial details (connection issues, "can you hear me", technical setup)
-6. Focus on SUBSTANCE: decisions, discussions, problems, solutions
-7. You may REFERENCE action items/achievements/blockers naturally (e.g., "Several deployment tasks were assigned to Bob") but DON'T create standalone lists of them
-8. Tell the STORY of what happened in the meeting
+**CRITICAL FORMATTING RULES - FOLLOW EXACTLY:**
+1. ✅ Use **Bold** for main section headers: **Meeting Overview**, **Key Discussion Topics**, **Decisions Made**, **Concerns & Challenges**
+2. ✅ Use ## for topic subsections ONLY within Key Discussion Topics (e.g., ## Project Timeline, ## Budget Discussion)
+3. ✅ Use bullet points (-) for ALL lists in ALL sections - MANDATORY
+4. ✅ Each bullet point should be ONE clear, complete idea (1-2 sentences max)
+5. ✅ DO NOT write flowing narrative paragraphs under topics - ONLY bullet points
+6. ✅ DO NOT write multi-paragraph text blocks - break into bullets
+7. ✅ Skip trivial details: connection issues, "can you hear me", technical setup problems
+8. ✅ Focus on SUBSTANCE: decisions, discussions, problems, solutions, technical details
+9. ✅ Reference action items/achievements naturally if needed (e.g., "Bob was assigned to deploy the API") but don't create duplicate lists
+10. ✅ Make every bullet count - include specific details, names, dates, numbers
+
+**EXAMPLE OF CORRECT FORMAT:**
+```markdown
+**Meeting Overview**
+The team discussed Q4 product launch timeline and resource allocation. Primary goal was to align engineering and marketing on deliverables and identify blockers.
+
+**Key Discussion Topics**
+
+## Product Launch Timeline
+- Target launch date confirmed as December 15, 2024
+- Engineering team (led by Sarah) needs 6 weeks for final testing
+- Marketing (Bob) requires 2 weeks advance notice for campaign prep
+- Risk identified: holiday season may impact customer onboarding
+- Decision to add buffer week for contingencies
+
+## Resource Allocation
+- Current team: 3 engineers, 2 designers, 1 PM
+- Need to hire additional QA engineer by November 1
+- Budget approved for contractor support ($50K)
+- Design team requested Figma enterprise license
+- Agreement reached to reallocate sprint capacity
+
+**Decisions Made**
+- Launch date set for December 15, 2024 (decision by VP Product)
+- Hire QA engineer with budget approval from Finance
+- Approve Figma enterprise license ($500/month)
+- Reallocate 30% of sprint capacity to launch prep starting next week
+
+**Concerns & Challenges**
+- Holiday timing may reduce initial user engagement (Sarah)
+- Proposed solution: extend onboarding period to January
+- QA hiring timeline is tight (only 3 weeks)
+- Budget constraints may limit contractor hours
+- API integration with legacy system still unresolved
+```
+
+**WHAT NOT TO DO - EXAMPLES OF WRONG FORMAT:**
+❌ Writing paragraphs: "The team engaged in a comprehensive discussion about the product launch timeline. They explored various aspects including the target date, resource requirements, and potential risks. Sarah from engineering provided valuable input..."
+❌ NO BULLET POINTS: Just writing flowing text
+❌ Vague bullets: "Discussed timeline" (too vague - be specific!)
+❌ Missing names: "Someone mentioned budget" (who? be specific!)
+❌ Missing details: "Date was decided" (what date? when? by whom?)
 
 **CHAPTER SUMMARIES:**
 
