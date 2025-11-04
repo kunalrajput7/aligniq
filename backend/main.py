@@ -24,11 +24,12 @@ app = FastAPI(
 # Configure CORS
 # Allow requests from local development and production Vercel frontend
 allowed_origins = [
+    "https://summer-ai-studio.vercel.app",
     "http://localhost:3000",  # Local development
     "http://localhost:3001",  # Alternative local port
-    "https://summer-ai-studio.vercel.app/",
     # "https://your-custom-domain.com",
 ]
+
 
 # In development, allow all origins for testing
 if os.getenv("ENVIRONMENT") == "development":
