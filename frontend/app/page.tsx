@@ -482,7 +482,12 @@ export default function Home() {
 
   if (data) {
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-900">
+      <motion.main
+        className="min-h-screen bg-slate-50 text-slate-900"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      >
         <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between gap-6">
@@ -517,12 +522,16 @@ export default function Home() {
         <div className="container mx-auto px-4 py-2">
           <MeetingDashboard data={data} />
         </div>
-      </main>
+      </motion.main>
     );
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#F8FAFC]">
+    <motion.main
+      className="relative min-h-screen overflow-hidden bg-[#F8FAFC]"
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.6, ease: "easeIn" }}
+    >
       {/* Subtle dot pattern background */}
       <div className="absolute inset-0 opacity-[0.015]" style={{
         backgroundImage: 'radial-gradient(circle, #64748B 1px, transparent 1px)',
@@ -805,6 +814,6 @@ export default function Home() {
           </div>
         </motion.section>
       )}
-    </main>
+    </motion.main>
   );
 }

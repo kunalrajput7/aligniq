@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { motion } from 'framer-motion';
 import { PipelineResponse } from '@/types/api';
 import { MeetingHeader } from './dashboard/MeetingHeader';
 import { ChaptersList } from './dashboard/ChaptersList';
@@ -24,6 +25,53 @@ const sections = [
   { id: 'chapters', label: 'Chapters', icon: BookOpen },
   { id: 'mindmap', label: 'Mindmap', icon: Network },
 ];
+
+// Animation variants for staggered entrance
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: "easeOut",
+    },
+  },
+};
+
+const slideFromLeft = {
+  hidden: { opacity: 0, x: -30 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.6,
+      ease: "easeOut",
+    },
+  },
+};
+
+const slideFromRight = {
+  hidden: { opacity: 0, x: 30 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.6,
+      ease: "easeOut",
+    },
+  },
+};
 
 export function MeetingDashboard({ data }: MeetingDashboardProps) {
   const [activeSection, setActiveSection] = useState('overview');
@@ -47,18 +95,23 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
     'custom-scrollbar pr-2 h-[calc(100vh-220px)] overflow-y-auto';
 
   return (
-    <div className={isMindmap ? 'mx-auto w-full px-6 py-5' : 'container mx-auto py-5'}>
+    <motion.div
+      className={isMindmap ? 'mx-auto w-full px-6 py-5' : 'container mx-auto py-5'}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
       {/* Meeting Header */}
       {!isMindmap && (
-        <div className="mb-8">
+        <motion.div className="mb-8" variants={itemVariants}>
           <MeetingHeader details={meetingDetails} />
-        </div>
+        </motion.div>
       )}
 
       {/* 3-Column Layout */}
       <div className={`flex gap-4 ${isMindmap ? 'items-stretch' : ''}`}>
         {/* Left Sidebar - Navigation */}
-        <aside className="w-44 flex-shrink-0">
+        <motion.aside className="w-44 flex-shrink-0" variants={slideFromLeft}>
           <div className="space-y-2">
             {sections.map((section) => {
               const Icon = section.icon;
@@ -78,7 +131,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
               );
             })}
           </div>
-        </aside>
+        </motion.aside>
 
         {/* Center Content Area */}
         <main
@@ -88,7 +141,7 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
           {activeSection === 'overview' && (
             <div className={`${scrollAreaClass} space-y-5`}>
               {/* Meeting Summary with Markdown */}
-              <div>
+              <motion.div variants={itemVariants}>
                 <div className="flex items-center gap-2 mb-3">
                   <FileText className="h-6 w-6" />
                   <h2 className="text-2xl font-bold">Meeting Summary</h2>
@@ -117,49 +170,63 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </motion.div>
 
               {/* Deadlines - Full Width Row */}
-              <DeadlinesCard tasks={collectiveSummary?.action_items || []} />
+              <motion.div variants={itemVariants}>
+                <DeadlinesCard tasks={collectiveSummary?.action_items || []} />
+              </motion.div>
 
               {/* Achievements, Blockers */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <motion.div className="grid grid-cols-1 md:grid-cols-2 gap-5" variants={itemVariants}>
                 <AchievementsList achievements={collectiveSummary?.achievements || []} />
                 <BlockersList blockers={collectiveSummary?.blockers || []} />
-              </div>
+              </motion.div>
 
               {/* Hats System - Full Width Row */}
-              <HatSystem
-                hats={data?.hats || []}
-                participants={meetingDetails?.participants || []}
-              />
+              <motion.div variants={itemVariants}>
+                <HatSystem
+                  hats={data?.hats || []}
+                  participants={meetingDetails?.participants || []}
+                />
+              </motion.div>
             </div>
           )}
 
           {/* Chapters Section */}
           {activeSection === 'chapters' && (
-            <div className={`${scrollAreaClass} space-y-5`}>
+            <motion.div
+              className={`${scrollAreaClass} space-y-5`}
+              variants={itemVariants}
+              initial="hidden"
+              animate="visible"
+            >
               <ChaptersList chapters={data?.chapters || []} />
-            </div>
+            </motion.div>
           )}
 
           {/* Mindmap Section */}
           {activeSection === 'mindmap' && (
-            <div className="h-[calc(100vh-8rem)]">
+            <motion.div
+              className="h-[calc(100vh-8rem)]"
+              variants={itemVariants}
+              initial="hidden"
+              animate="visible"
+            >
               <MindmapCanvas mindmap={data?.mindmap || { center_node: { id: 'root', label: 'Meeting', type: 'root' }, nodes: [], edges: [] }} />
-            </div>
+            </motion.div>
           )}
         </main>
 
         {/* Right Sidebar - To-Dos (Hidden on Mindmap) */}
         {activeSection !== 'mindmap' && (
-          <aside className="w-80 flex-shrink-0">
+          <motion.aside className="w-80 flex-shrink-0" variants={slideFromRight}>
             <div className={`${scrollAreaClass}`}>
               <DeadlinesList tasks={collectiveSummary?.action_items || []} />
             </div>
-          </aside>
+          </motion.aside>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
