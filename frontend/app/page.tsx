@@ -9,6 +9,7 @@ import { formatDuration } from '@/lib/utils';
 import { ArrowLeft, FileDown, Loader2, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import jsPDF from 'jspdf';
+import { LoadingMessages } from '@/components/LoadingMessages';
 
 // Render markdown text with proper formatting in PDF
 const renderMarkdownToPDF = (
@@ -741,6 +742,7 @@ export default function Home() {
                   {error}
                 </motion.p>
               )}
+              {isLoading && <LoadingMessages />}
             </div>
 
             {/* Bottom Left: Analytics Widget */}
