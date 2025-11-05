@@ -6,7 +6,7 @@ This provides the structural foundation for subsequent stages.
 from __future__ import annotations
 import json
 from typing import List, Dict, Any, Optional
-from .common import call_ollama_cloud_async, _resolve_model, _fmt_local
+from .common import call_ollama_cloud_async, _resolve_model, _fmt_local, STAGE1_MODEL, STAGE1_ENDPOINT, STAGE1_KEY
 
 
 async def run_foundation_stage_async(
@@ -143,13 +143,35 @@ Return ONLY valid JSON with no additional text."""
     ]
 
     try:
-        response_text = await call_ollama_cloud_async(_resolve_model(model), messages, json_mode=True)
+        import time
+        start_time = time.time()
+
+        # Use stage-specific model configuration
+        # Stage 1: Fast extraction with GPT-5 Nano (or configured model)
+        stage_model = model if model else STAGE1_MODEL
+        print(f"[STAGE 1] Starting foundation extraction...")
+        print(f"[STAGE 1] Model: {stage_model}")
+
+        # GPT-5 Nano only supports default temperature (1.0)
+        # Only set temperature if NOT using nano
+        temp = None if "nano" in stage_model.lower() else 0.2
+
+        response_text = await call_ollama_cloud_async(
+            model=stage_model,
+            messages=messages,
+            json_mode=True,
+            endpoint=STAGE1_ENDPOINT,
+            api_key=STAGE1_KEY,
+            temperature=temp  # Low temperature for deterministic extraction (if supported)
+            # No max_tokens limit - let model use as many tokens as needed for reasoning + output
+        )
         result = json.loads(response_text)
 
         # Validate and normalize
         result = _normalize_foundation(result, utterances, duration_ms)
 
-        print(f"[STAGE 1] Foundation extraction complete:")
+        elapsed_time = time.time() - start_time
+        print(f"[STAGE 1] ✓ Foundation extraction complete in {elapsed_time:.2f}s")
         print(f"  - Meeting: {result['meeting_details'].get('title', 'N/A')}")
         print(f"  - Participants: {len(result['meeting_details'].get('participants', []))}")
         print(f"  - Timeline points: {len(result.get('timeline', []))}")

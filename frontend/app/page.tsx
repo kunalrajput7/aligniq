@@ -490,7 +490,7 @@ export default function Home() {
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-semibold leading-tight">Meeting Summarizer</h1>
+                  <h1 className="text-lg font-semibold leading-tight">Summer AI</h1>
                   <p className="text-xs text-slate-500">AI-powered meeting intelligence</p>
                 </div>
               </div>

@@ -21,10 +21,24 @@ DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL") or os.getenv("AZURE_AI_DEPLOYMEN
 
 BAD_MODEL_LITERALS = {"string", "model", ""}
 
+# Global default Azure configuration
 AZURE_AI_ENDPOINT = os.getenv("AZURE_AI_ENDPOINT")
 AZURE_AI_KEY = os.getenv("AZURE_AI_KEY")
 AZURE_AI_DEPLOYMENT = os.getenv("AZURE_AI_DEPLOYMENT")
 AZURE_AI_API_VERSION = os.getenv("AZURE_AI_API_VERSION", "2024-05-01-preview")
+
+# Per-stage model configuration (optional - falls back to global config)
+STAGE1_MODEL = os.getenv("STAGE1_MODEL") or AZURE_AI_DEPLOYMENT
+STAGE1_ENDPOINT = os.getenv("STAGE1_ENDPOINT") or AZURE_AI_ENDPOINT
+STAGE1_KEY = os.getenv("STAGE1_KEY") or AZURE_AI_KEY
+
+STAGE2_MODEL = os.getenv("STAGE2_MODEL") or AZURE_AI_DEPLOYMENT
+STAGE2_ENDPOINT = os.getenv("STAGE2_ENDPOINT") or AZURE_AI_ENDPOINT
+STAGE2_KEY = os.getenv("STAGE2_KEY") or AZURE_AI_KEY
+
+STAGE3_MODEL = os.getenv("STAGE3_MODEL") or AZURE_AI_DEPLOYMENT
+STAGE3_ENDPOINT = os.getenv("STAGE3_ENDPOINT") or AZURE_AI_ENDPOINT
+STAGE3_KEY = os.getenv("STAGE3_KEY") or AZURE_AI_KEY
 
 # Debug: Print loaded values (will be visible on startup)
 print(f"[CONFIG] AZURE_AI_ENDPOINT: {AZURE_AI_ENDPOINT}")
@@ -61,7 +75,11 @@ def _resolve_model(model: Optional[str]) -> str:
 async def call_ollama_cloud_async(
     model: str,
     messages: List[Dict[str, str]],
-    json_mode: bool = True
+    json_mode: bool = True,
+    endpoint: Optional[str] = None,
+    api_key: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None
 ) -> str:
     """
     Call Azure AI Foundry deployment asynchronously and return response content.
@@ -70,11 +88,19 @@ async def call_ollama_cloud_async(
         model: Optional override for deployment name
         messages: List of message dicts with 'role' and 'content'
         json_mode: Whether to request JSON-formatted output
+        endpoint: Optional custom endpoint (defaults to AZURE_AI_ENDPOINT)
+        api_key: Optional custom API key (defaults to AZURE_AI_KEY)
+        temperature: Optional temperature setting for model (0.0-1.0)
+        max_tokens: Optional max completion tokens limit
 
     Returns:
         Response content string
     """
-    if not (AZURE_AI_ENDPOINT and AZURE_AI_KEY):
+    # Use provided endpoint/key or fall back to global defaults
+    target_endpoint = endpoint or AZURE_AI_ENDPOINT
+    target_key = api_key or AZURE_AI_KEY
+
+    if not (target_endpoint and target_key):
         raise RuntimeError("Azure AI credentials are not configured. Please set AZURE_AI_ENDPOINT and AZURE_AI_KEY in .env file")
 
     # Use the deployment name from env or the provided model parameter
@@ -83,7 +109,7 @@ async def call_ollama_cloud_async(
     # Azure AI Foundry uses OpenAI-compatible endpoint format
     # Format: https://{endpoint}/openai/v1/chat/completions
     # The deployment name goes in the "model" field of the payload
-    base_endpoint = AZURE_AI_ENDPOINT.rstrip('/')
+    base_endpoint = target_endpoint.rstrip('/')
 
     # Ensure endpoint has /openai/v1
     if not base_endpoint.endswith('/openai/v1'):
@@ -96,16 +122,21 @@ async def call_ollama_cloud_async(
 
     headers = {
         "Content-Type": "application/json",
-        "api-key": AZURE_AI_KEY
+        "api-key": target_key
     }
 
     # Azure AI Foundry uses deployment name in the model field (OpenAI-compatible format)
     payload = {
         "model": deployment,  # Deployment name goes here
         "messages": messages,
-        # Removed max_completion_tokens limit - let model use its full capacity
-        # GPT-5 Nano supports up to 200K tokens context window
     }
+
+    # Add optional parameters for optimization
+    if temperature is not None:
+        payload["temperature"] = temperature
+
+    if max_tokens is not None:
+        payload["max_completion_tokens"] = max_tokens
 
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
@@ -116,6 +147,8 @@ async def call_ollama_cloud_async(
         payload_size = len(json_lib.dumps(payload))
         print(f"[DEBUG] Calling Azure AI with URL: {url}")
         print(f"[DEBUG] Deployment: {deployment}")
+        print(f"[DEBUG] Temperature: {temperature if temperature is not None else 'default'}")
+        print(f"[DEBUG] Max tokens: {max_tokens if max_tokens is not None else 'unlimited'}")
         print(f"[DEBUG] Payload size: {payload_size:,} bytes")
         print(f"[DEBUG] Timeout: 300 seconds (5 minutes)")
 

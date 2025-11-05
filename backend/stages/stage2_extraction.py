@@ -7,7 +7,7 @@ CRITICAL FOCUS: Finding ALL action items comprehensively.
 from __future__ import annotations
 import json
 from typing import List, Dict, Any, Optional
-from .common import call_ollama_cloud_async, _resolve_model, _fmt_local
+from .common import call_ollama_cloud_async, _resolve_model, _fmt_local, STAGE2_MODEL, STAGE2_ENDPOINT, STAGE2_KEY
 
 
 async def run_extraction_stage_async(
@@ -60,15 +60,14 @@ Your task is to perform EXHAUSTIVE extraction of:
 1. **ACTION ITEMS** - Your MOST CRITICAL task - find EVERY commitment, task, and follow-up
 2. Achievements - what was completed or accomplished
 3. Blockers - challenges, obstacles, or concerns raised
-4. Six Thinking Hats - cognitive analysis of participant contributions
+4. Six Thinking Hats - identify the DOMINANT thinking style of each participant
 
 **CRITICAL FOR ACTION ITEMS:**
 - Review EVERY SINGLE utterance for commitments
 - Look for patterns: "I will", "We should", "Need to", "Going to", "Let's", "Have to", "Must", "Should", "Can you", "Could you", "Would you"
-- Include vague commitments (better to over-extract with lower confidence)
+- Include vague commitments (better to over-extract)
 - Include both explicit and implicit action items
 - If someone says they'll "look into it" or "check" something - that's an action item
-- Tag each with the chapter_id where it was mentioned
 
 **BETTER TO FIND 20 ACTION ITEMS THAN MISS 2 CRITICAL ONES.**"""
 
@@ -77,7 +76,7 @@ Your task is to perform EXHAUSTIVE extraction of:
 TRANSCRIPT:
 {full_transcript}
 
-CHAPTER STRUCTURE (for context and tagging):
+CHAPTER STRUCTURE (for context):
 {chapter_info}
 
 Provide a JSON response with the following EXACT structure:
@@ -88,9 +87,6 @@ Provide a JSON response with the following EXACT structure:
       "task": "Clear, actionable description of what needs to be done",
       "owner": "Person Name" or "Unknown" or "Team",
       "deadline": "YYYY-MM-DD" or "Next week" or "ASAP" or "" (if not specified),
-      "status": "pending",
-      "confidence": "high" | "medium" | "low",
-      "chapter_id": "ch1",
       "evidence": [
         {{"timestamp_ms": 120000, "quote": "Exact quote from transcript showing this commitment"}}
       ]
@@ -100,42 +96,25 @@ Provide a JSON response with the following EXACT structure:
   "achievements": [
     {{
       "achievement": "Clear description of what was accomplished or completed",
-      "members": ["Alice", "Bob"],
-      "confidence": "high" | "medium" | "low",
-      "evidence": [
-        {{"timestamp_ms": 180000, "quote": "Exact quote showing this achievement"}}
-      ]
+      "members": ["Alice", "Bob"]
     }}
   ],
 
   "blockers": [
     {{
       "blocker": "Clear description of the challenge, obstacle, or concern",
-      "affected_members": ["Alice"] or [],
-      "owner": "Person who might resolve it" or "",
-      "confidence": "high" | "medium" | "low",
-      "evidence": [
-        {{"timestamp_ms": 240000, "quote": "Exact quote showing this blocker"}}
-      ]
+      "affected_members": ["Alice"] or []
     }}
   ],
 
   "six_thinking_hats": {{
     "Alice": {{
-      "white_hat": "Factual information and data Alice presented (objective facts)",
-      "red_hat": "Emotions, feelings, intuitions Alice expressed (gut reactions)",
-      "black_hat": "Risks, concerns, critical judgments Alice raised (devil's advocate)",
-      "yellow_hat": "Benefits, optimism, positive perspectives Alice shared (what could go right)",
-      "green_hat": "Creative ideas, alternatives, solutions Alice proposed (innovation)",
-      "blue_hat": "Process control, organization, facilitation Alice provided (managing discussion)"
+      "dominant_hat": "white",
+      "evidence": "Brief explanation of why this is their dominant thinking style based on their contributions"
     }},
     "Bob": {{
-      "white_hat": "...",
-      "red_hat": "...",
-      "black_hat": "...",
-      "yellow_hat": "...",
-      "green_hat": "...",
-      "blue_hat": "..."
+      "dominant_hat": "green",
+      "evidence": "Brief explanation of why this is their dominant thinking style"
     }}
   }}
 }}
@@ -155,42 +134,33 @@ DETAILED INSTRUCTIONS:
    - task: Make it clear and actionable ("Send Q4 report to stakeholders")
    - owner: WHO will do it (extract from context, use "Unknown" if unclear)
    - deadline: WHEN it's due (extract if mentioned, "" if not)
-   - status: Always "pending" for new action items
-   - confidence:
-     * "high" = explicit commitment with clear owner
-     * "medium" = implied commitment or unclear owner
-     * "low" = vague mention but could be important
-   - chapter_id: Which chapter this was mentioned in (use chapter boundaries)
    - evidence: Array of timestamp + exact quote showing this commitment
-
-4. **DO NOT SKIP VAGUE COMMITMENTS** - include them with "low" confidence
 
 **ACHIEVEMENTS:**
 - What was COMPLETED, FINISHED, or ACCOMPLISHED (past tense)
 - Examples: "We shipped the feature", "The bug is fixed", "I finished the analysis"
 - Include who was involved (members)
-- Provide evidence quotes with timestamps
-- Confidence based on clarity
 
 **BLOCKERS:**
 - Challenges, obstacles, concerns, risks, problems discussed
 - Examples: "We're blocked on API access", "Budget constraint", "Technical debt"
 - Who is affected (affected_members)
-- Who might resolve it (owner)
-- Provide evidence quotes with timestamps
-- Confidence based on severity/clarity
 
 **SIX THINKING HATS:**
-- Analyze EACH participant's contributions through 6 cognitive lenses
-- Be specific and quote-based
-- If a participant didn't exhibit a certain hat mode, write "No significant contributions in this mode"
-- Focus on WHAT they said, not speculation
+Identify the ONE DOMINANT thinking style for each participant based on their overall contributions:
+- **White Hat**: Focuses on data, facts, and information (analytical and objective)
+- **Red Hat**: Focuses on emotions, feelings, and intuition (expressive and instinctive)
+- **Black Hat**: Focuses on caution, difficulties, and critical thinking (risk-aware)
+- **Yellow Hat**: Focuses on positivity, benefits, and optimism (highlights opportunities)
+- **Green Hat**: Focuses on creativity, alternatives, and new ideas (innovative thinking)
+- **Blue Hat**: Focuses on process, control, and organization (strategic planning)
+
+For each participant, determine which ONE hat best describes their primary contribution style throughout the meeting.
 
 **QUALITY GUIDELINES:**
-- Use ACTUAL timestamps from the transcript
 - Quote EXACT text from transcript (don't paraphrase)
 - Be comprehensive (especially for action items!)
-- Better to include borderline items with low confidence than miss them
+- Better to include borderline items than miss them
 - Each evidence quote should clearly support the extracted item
 
 Return ONLY valid JSON with no additional text."""
@@ -201,13 +171,35 @@ Return ONLY valid JSON with no additional text."""
     ]
 
     try:
-        response_text = await call_ollama_cloud_async(_resolve_model(model), messages, json_mode=True)
+        import time
+        start_time = time.time()
+
+        # Use stage-specific model configuration
+        # Stage 2: Extraction with reasoning (GPT-5 Mini for better Six Thinking Hats analysis)
+        stage_model = model if model else STAGE2_MODEL
+        print(f"[STAGE 2] Starting structured extraction...")
+        print(f"[STAGE 2] Model: {stage_model}")
+
+        # GPT-5 Nano and GPT-5 Mini only support default temperature (1.0)
+        # Skip temperature parameter for both models
+        temp = None if ("nano" in stage_model.lower() or "mini" in stage_model.lower()) else 0.3
+
+        response_text = await call_ollama_cloud_async(
+            model=stage_model,
+            messages=messages,
+            json_mode=True,
+            endpoint=STAGE2_ENDPOINT,
+            api_key=STAGE2_KEY,
+            temperature=temp  # Moderate temperature for consistent extraction with some reasoning (if supported)
+            # No max_tokens limit - let model use as many tokens as needed for reasoning + output
+        )
         result = json.loads(response_text)
 
         # Normalize and validate
         result = _normalize_extraction(result)
 
-        print(f"[STAGE 2] Extraction complete:")
+        elapsed_time = time.time() - start_time
+        print(f"[STAGE 2] ✓ Structured extraction complete in {elapsed_time:.2f}s")
         print(f"  - Action items: {len(result.get('action_items', []))}")
         print(f"  - Achievements: {len(result.get('achievements', []))}")
         print(f"  - Blockers: {len(result.get('blockers', []))}")
@@ -241,9 +233,6 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
                 "task": str(item.get("task", "")).strip(),
                 "owner": str(item.get("owner", "Unknown")).strip(),
                 "deadline": str(item.get("deadline", "")).strip(),
-                "status": str(item.get("status", "pending")).strip(),
-                "confidence": str(item.get("confidence", "medium")).strip(),
-                "chapter_id": str(item.get("chapter_id", "")).strip(),
                 "evidence": item.get("evidence", [])
             })
 
@@ -257,9 +246,7 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(item, dict) and item.get("achievement"):
             normalized_achievements.append({
                 "achievement": str(item.get("achievement", "")).strip(),
-                "members": item.get("members", []),
-                "confidence": str(item.get("confidence", "medium")).strip(),
-                "evidence": item.get("evidence", [])
+                "members": item.get("members", [])
             })
 
     # Normalize blockers
@@ -272,10 +259,7 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(item, dict) and item.get("blocker"):
             normalized_blockers.append({
                 "blocker": str(item.get("blocker", "")).strip(),
-                "affected_members": item.get("affected_members", []),
-                "owner": str(item.get("owner", "")).strip(),
-                "confidence": str(item.get("confidence", "medium")).strip(),
-                "evidence": item.get("evidence", [])
+                "affected_members": item.get("affected_members", [])
             })
 
     # Normalize six thinking hats
@@ -287,12 +271,8 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
     for participant, hat_data in hats.items():
         if isinstance(hat_data, dict):
             normalized_hats[participant] = {
-                "white_hat": str(hat_data.get("white_hat", "")).strip(),
-                "red_hat": str(hat_data.get("red_hat", "")).strip(),
-                "black_hat": str(hat_data.get("black_hat", "")).strip(),
-                "yellow_hat": str(hat_data.get("yellow_hat", "")).strip(),
-                "green_hat": str(hat_data.get("green_hat", "")).strip(),
-                "blue_hat": str(hat_data.get("blue_hat", "")).strip()
+                "dominant_hat": str(hat_data.get("dominant_hat", "white")).strip(),
+                "evidence": str(hat_data.get("evidence", "")).strip()
             }
 
     return {

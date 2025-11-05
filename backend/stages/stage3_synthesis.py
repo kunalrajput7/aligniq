@@ -6,7 +6,7 @@ This stage focuses on storytelling and markdown formatting.
 from __future__ import annotations
 import json
 from typing import List, Dict, Any, Optional
-from .common import call_ollama_cloud_async, _resolve_model, _fmt_local
+from .common import call_ollama_cloud_async, _resolve_model, _fmt_local, STAGE3_MODEL, STAGE3_ENDPOINT, STAGE3_KEY
 
 
 async def run_synthesis_stage_async(
@@ -82,7 +82,13 @@ Your task is to:
 - Reference them naturally if needed (e.g., "Bob was assigned deployment task")
 - Focus on SUBSTANCE: decisions, discussions, problems, solutions, technical details
 - Skip trivial details: connection issues, "can you hear me", setup problems
-- Make it comprehensive and detailed with concrete specifics"""
+- Make it comprehensive and detailed with concrete specifics
+
+**CRITICAL: DO NOT include timestamps in narrative summary**
+- ❌ NEVER write: "Thomas explained... (00:04:37–00:05:04)"
+- ❌ NEVER write: "At 00:02:33, the team discussed..."
+- ✅ ALWAYS write: "Thomas explained that .md files are the canonical format"
+- Timestamps are ONLY for evidence arrays in action items"""
 
     user_prompt = f"""Analyze this meeting transcript and create narrative summaries.
 
@@ -237,13 +243,35 @@ Return ONLY valid JSON with no additional text."""
     ]
 
     try:
-        response_text = await call_ollama_cloud_async(_resolve_model(model), messages, json_mode=True)
+        import time
+        start_time = time.time()
+
+        # Use stage-specific model configuration
+        # Stage 3: Creative synthesis with GPT-5 Mini for better narrative quality
+        stage_model = model if model else STAGE3_MODEL
+        print(f"[STAGE 3] Starting narrative synthesis...")
+        print(f"[STAGE 3] Model: {stage_model}")
+
+        # GPT-5 Nano and GPT-5 Mini only support default temperature (1.0)
+        # Skip temperature parameter for both models
+        temp = None if ("nano" in stage_model.lower() or "mini" in stage_model.lower()) else 0.4
+
+        response_text = await call_ollama_cloud_async(
+            model=stage_model,
+            messages=messages,
+            json_mode=True,
+            endpoint=STAGE3_ENDPOINT,
+            api_key=STAGE3_KEY,
+            temperature=temp  # Moderate temperature for creative synthesis with consistency (if supported)
+            # No max_tokens limit - let model use as many tokens as needed for reasoning + output
+        )
         result = json.loads(response_text)
 
         # Normalize and merge with chapter structure
         result = _normalize_synthesis(result, chapters)
 
-        print(f"[STAGE 3] Synthesis complete:")
+        elapsed_time = time.time() - start_time
+        print(f"[STAGE 3] ✓ Narrative synthesis complete in {elapsed_time:.2f}s")
         print(f"  - Narrative summary: {len(result.get('narrative_summary', ''))} chars")
         print(f"  - Chapter summaries: {len(result.get('chapters', []))}")
 

@@ -14,7 +14,8 @@
       "Bash(timeout 5 python:*)",
       "Bash(npm run build:*)",
       "Bash(git restore:*)",
-      "Bash(Move-Item \"c:\\Users\\kunal\\Desktop\\Projects\\llm_meet_summarizer\\backend\\stages\\stage5_mindmap.py\" \"c:\\Users\\kunal\\Desktop\\Projects\\llm_meet_summarizer\\backend\\stages\\stage4_mindmap.py\")"
+      "Bash(Move-Item \"c:\\Users\\kunal\\Desktop\\Projects\\llm_meet_summarizer\\backend\\stages\\stage5_mindmap.py\" \"c:\\Users\\kunal\\Desktop\\Projects\\llm_meet_summarizer\\backend\\stages\\stage4_mindmap.py\")",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []

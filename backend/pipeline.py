@@ -392,9 +392,16 @@ def _sanitize_narrative_summary(text: str) -> str:
     """
     Remove any extra sections (Six Thinking Hats, Chapters, JSON dumps, etc.)
     that sometimes get appended to the narrative summary by the model.
+    Also removes timestamp patterns like (00:00:00) or (00:00:00–00:00:00).
     """
     if not text:
         return ""
+
+    import re
+
+    # Remove timestamp patterns: (HH:MM:SS) or (HH:MM:SS–HH:MM:SS)
+    # This catches patterns like (00:04:37–00:05:04) or (00:02:33)
+    text = re.sub(r'\(\d{2}:\d{2}:\d{2}(?:–\d{2}:\d{2}:\d{2})?\)', '', text)
 
     cleaned = text.replace("\r", "\n")
     stop_markers = (
@@ -531,6 +538,9 @@ async def run_pipeline_async(
             }
         }
     """
+    import time
+    pipeline_start = time.time()
+
     print("\n" + "=" * 70)
     print("[PIPELINE] Starting 3-STAGE pipeline execution")
     print("=" * 70)
@@ -631,38 +641,28 @@ async def run_pipeline_async(
             for participant, hats_data in six_thinking_hats.items():
                 if not isinstance(hats_data, dict):
                     continue
-                sections = {
-                    "white": _clean_text(hats_data.get("white_hat")),
-                    "red": _clean_text(hats_data.get("red_hat")),
-                    "black": _clean_text(hats_data.get("black_hat")),
-                    "yellow": _clean_text(hats_data.get("yellow_hat")),
-                    "green": _clean_text(hats_data.get("green_hat")),
-                    "blue": _clean_text(hats_data.get("blue_hat")),
-                }
-                lengths = {color: len(text) for color, text in sections.items()}
-                dominant_hat = max(lengths, key=lengths.get)
-                total_chars = sum(lengths.values())
-                dominant_text = sections[dominant_hat]
-                if total_chars:
-                    confidence_hat = max(0.5, min(lengths[dominant_hat] / total_chars, 1.0))
-                else:
-                    confidence_hat = 0.6
 
-                explanation = _build_hat_description(participant, dominant_hat, sections)
-                if explanation and explanation[-1] != ".":
-                    explanation = explanation + "."
+                # New simplified structure: dominant_hat + evidence from Stage 2
+                dominant_hat = hats_data.get("dominant_hat", "white")
+                evidence = hats_data.get("evidence", "")
+
+                # Ensure evidence ends with period
+                if evidence and evidence[-1] != ".":
+                    evidence = evidence + "."
 
                 hats.append(
                     {
                         "speaker": participant,
                         "hat": dominant_hat,
                         "t": "00:00:00",
-                        "evidence": explanation,
-                        "confidence": round(confidence_hat, 2),
+                        "evidence": evidence,
+                        "confidence": 0.85,  # Default confidence for dominant hat
                     }
                 )
 
-        print("[PIPELINE] Extracted from 3-stage analysis:")
+        stage3_time = time.time() - pipeline_start
+
+        print("[PIPELINE] ✓ 3-stage analysis complete!")
         print(f"  - Meeting: {meeting_details['title']}")
         print(f"  - Action Items: {len(action_items)}")
         print(f"  - Achievements: {len(achievements)}")
@@ -670,6 +670,7 @@ async def run_pipeline_async(
         print(f"  - Six Thinking Hats: {len(hats)} participants")
         print(f"  - Chapters: {len(chapters)}")
         print(f"  - Timeline: {len(timeline)} key moments")
+        print(f"  - Total time: {stage3_time:.2f}s")
 
     except Exception as exc:  # noqa: BLE001
         print(f"[PIPELINE] ERROR in 3-stage analysis: {exc}")
@@ -713,7 +714,7 @@ async def run_pipeline_async(
             hats=hats,
         )
         print(
-            "[PIPELINE] Mindmap complete. "
+            "[PIPELINE] ✓ Mindmap complete. "
             f"Nodes: {len(mindmap.get('nodes', []))}, Edges: {len(mindmap.get('edges', []))}"
         )
     except Exception as exc:  # noqa: BLE001
@@ -724,7 +725,10 @@ async def run_pipeline_async(
             "edges": [],
         }
 
-    print("\n[PIPELINE] Pipeline execution complete!")
+    total_time = time.time() - pipeline_start
+
+    print("\n" + "=" * 70)
+    print(f"[PIPELINE] ✓ Pipeline execution complete in {total_time:.2f}s")
     print("[PIPELINE] Total API calls: 4 (Stage 1-3 + mindmap)")
     print("=" * 70 + "\n")
 
