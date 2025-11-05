@@ -521,27 +521,18 @@ export default function Home() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#f4f6ff] via-[#fdfdff] to-[#eef7ff] text-slate-900">
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -left-28 -top-28 h-96 w-96 rounded-full bg-gradient-to-br from-[#9fb8ff]/55 via-[#c9a9ff]/35 to-transparent blur-3xl"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1.4, ease: 'easeOut' }}
-      />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-40 right-0 h-[28rem] w-[32rem] rounded-full bg-gradient-to-br from-[#9af0e0]/45 via-[#8bc6ff]/30 to-transparent blur-3xl"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1.6, delay: 0.3, ease: 'easeOut' }}
-      />
+    <main className="relative min-h-screen overflow-hidden bg-[#F8FAFC]">
+      {/* Subtle dot pattern background */}
+      <div className="absolute inset-0 opacity-[0.015]" style={{
+        backgroundImage: 'radial-gradient(circle, #64748B 1px, transparent 1px)',
+        backgroundSize: '24px 24px'
+      }} />
 
       <AnimatePresence>
         {showIntro && (
           <motion.div
             key="intro"
-            className="absolute inset-0 z-20 flex items-center justify-center bg-white"
+            className="absolute inset-0 z-50 flex items-center justify-center bg-white"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -552,7 +543,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -24 }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
-              className="bg-gradient-to-r from-[#5168ff] via-[#9b55ff] to-[#53d7d0] bg-clip-text text-4xl uppercase tracking-[0.5em] text-transparent md:text-6xl"
+              className="bg-gradient-to-r from-[#3B82F6] via-[#8B5CF6] to-[#06B6D4] bg-clip-text text-4xl font-bold uppercase tracking-[0.3em] text-transparent md:text-6xl"
             >
               SUMMER AI
             </motion.h1>
@@ -562,66 +553,177 @@ export default function Home() {
 
       {!showIntro && (
         <motion.section
-          key="upload"
-          className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10 md:px-10 md:py-16"
+          key="landing"
+          className="relative z-10 min-h-screen"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
+          transition={{ duration: 0.6 }}
         >
-          <motion.div
-            className="relative flex w-full max-w-6xl flex-col overflow-hidden rounded-[52px] border border-slate-200/70 bg-white/70 shadow-[0_60px_120px_rgba(123,147,255,0.25)] backdrop-blur-3xl md:min-h-[80vh] md:flex-row"
-            style={{ margin: '3px' }}
-            initial={{ scale: 0.97 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          >
-            <div className="relative flex w-full flex-1 items-center justify-center bg-gradient-to-br to-[#d1d6ee] via-[#9196a3] from-[#a6b8ec] p-6 md:p-12">
-              <motion.div
-                className="relative flex h-[72vh] w-full max-w-sm flex-col overflow-hidden rounded-[44px] border border-white/15 bg-white/8 shadow-[0_35px_110px_rgba(18,31,60,0.65)] backdrop-blur-2xl"
-                initial={{ opacity: 0, y: 48 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.9, delay: 0.2 }}
-                whileHover={{ scale: 1.03 }}
-              >
-                <img
-                  src="/rect1.png"
-                  alt="Instant summary background"
-                  className="absolute inset-0 h-full w-full object-cover opacity-80"
-                />
-                <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/35 to-black/50" />
-                <div className="relative z-10 flex h-full flex-col">
-                  <div className="px-9 pt-12">
-                    <p className="text-xs uppercase tracking-[0.55em] text-white/70">
-                      Instant Summary
-                    </p>
-                    <h2 className="mt-6 text-3xl font-semibold leading-snug text-white">
-                      Upload a transcript to generate an elegant, insight-rich meeting brief.
-                    </h2>
-                    <p className="mt-4 text-sm text-white/65">
-                      Powered by Summer AI&mdash;optimized for clarity, speed, and decision-ready output.
-                    </p>
+          {/* Header */}
+          <header className="relative z-10 border-b border-slate-200/50 bg-white/80 backdrop-blur-sm">
+            <div className="container mx-auto flex items-center justify-between px-4 py-4 sm:px-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/25">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-xl font-bold text-slate-900">Summer AI</span>
+              </div>
+              <div className="hidden md:flex items-center gap-8">
+                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
+                  Features
+                </button>
+                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
+                  Solutions
+                </button>
+                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
+                  Resources
+                </button>
+                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
+                  Pricing
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <button className="hidden sm:inline-block rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+                  Sign in
+                </button>
+                <button
+                  onClick={handleUploadButtonClick}
+                  disabled={isLoading}
+                  className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-70"
+                >
+                  {isLoading ? 'Processing...' : 'Get demo'}
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Hero Section with Floating Elements */}
+          <div className="container relative mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-20 sm:pb-32">
+            {/* Top Left: Sticky Note */}
+            <motion.div
+              className="absolute left-4 top-8 w-48 sm:w-64 rotate-[-3deg] hidden lg:block"
+              initial={{ opacity: 0, y: -20, rotate: -6 }}
+              animate={{ opacity: 1, y: 0, rotate: -3 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              style={{
+                animation: 'float 6s ease-in-out infinite'
+              }}
+            >
+              <div className="rounded-lg bg-gradient-to-br from-yellow-200 to-yellow-300 p-6 shadow-2xl shadow-yellow-500/20">
+                <p className="text-sm leading-relaxed text-slate-800">
+                  <span className="font-semibold">Quick Tip:</span>
+                  <br />
+                  Upload your .vtt transcript and get instant AI-powered insights in seconds!
+                </p>
+              </div>
+              <div className="mt-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500 shadow-2xl shadow-blue-500/40">
+                <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </motion.div>
+
+            {/* Top Center: App Icons */}
+            <motion.div
+              className="absolute left-1/2 top-6 sm:top-12 -translate-x-1/2 hidden md:block"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              style={{
+                animation: 'float 5s ease-in-out infinite 0.5s'
+              }}
+            >
+              <div className="rounded-2xl bg-white p-4 shadow-2xl shadow-slate-900/10">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500" />
+                  <div className="h-8 w-8 rounded-full bg-slate-800" />
+                  <div className="h-8 w-8 rounded-full bg-slate-800" />
+                  <div className="h-8 w-8 rounded-full bg-slate-800" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Top Right: Action Items Card */}
+            <motion.div
+              className="absolute right-4 top-12 sm:right-8 sm:top-20 w-64 sm:w-72 rotate-[8deg] hidden xl:block"
+              initial={{ opacity: 0, y: -20, rotate: 12 }}
+              animate={{ opacity: 1, y: 0, rotate: 8 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              style={{
+                animation: 'float 7s ease-in-out infinite 1s'
+              }}
+            >
+              <div className="rounded-2xl bg-white p-5 shadow-2xl shadow-slate-900/10">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Action Items
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-500">
+                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </div>
-                  <div className="mt-auto px-9 pb-12">
-                    <button
-                      type="button"
-                      onClick={handleUploadButtonClick}
-                      className="group relative flex w-full items-center justify-center gap-2 rounded-2xl border border-white/30 bg-white/25 px-7 py-4 text-base font-semibold text-white shadow-[0_25px_60px_rgba(15,23,42,0.45)] backdrop-blur transition hover:bg-white/35 disabled:cursor-not-allowed disabled:opacity-70"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <>
-                          <span className="absolute inset-0 rounded-2xl bg-white/10 opacity-0 transition group-hover:opacity-100" />
-                          <span className="relative">Upload Transcript</span>
-                        </>
-                      )}
-                    </button>
-                    {error && (
-                      <p className="mt-3 text-center text-sm text-rose-200">{error}</p>
-                    )}
+                  <div className="flex-1">
+                    <div className="font-semibold text-slate-900">Review Quarterly Results</div>
+                    <div className="mt-1 text-sm text-slate-600">Marketing team presentation</div>
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <span className="flex items-center gap-1 text-cyan-600">
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Due: Next Week
+                      </span>
+                    </div>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+
+            {/* Center: Main Headline */}
+            <div className="relative z-10 mx-auto mt-16 sm:mt-24 max-w-4xl text-center">
+              <motion.h1
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight text-slate-900"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.1 }}
+              >
+                Transform meetings into
+                <br />
+                <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
+                  actionable insights
+                </span>
+              </motion.h1>
+              <motion.p
+                className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg md:text-xl text-slate-600 px-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+              >
+                Efficiently analyze meeting transcripts and generate comprehensive summaries with AI-powered intelligence.
+              </motion.p>
+              <motion.div
+                className="mt-8 sm:mt-10 flex items-center justify-center gap-4 px-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+              >
+                <button
+                  onClick={handleUploadButtonClick}
+                  disabled={isLoading}
+                  className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-semibold text-white shadow-2xl shadow-blue-500/40 transition hover:shadow-2xl hover:shadow-blue-500/60 disabled:opacity-70"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Processing...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="relative z-10">Upload transcript</span>
+                      <div className="absolute inset-0 -z-0 bg-gradient-to-r from-cyan-500 to-blue-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                    </>
+                  )}
+                </button>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -630,45 +732,75 @@ export default function Home() {
                   onChange={handleFileInputChange}
                 />
               </motion.div>
+              {error && (
+                <motion.p
+                  className="mt-4 text-sm text-red-600"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  {error}
+                </motion.p>
+              )}
             </div>
 
-            <div className="relative flex w-full flex-1 items-center justify-center bg-gradient-to-tl from-[#d1d6ee] via-[#9196a3] to-[#a6b8ec] p-6 md:p-12">
-              <motion.div
-                className="relative flex h-[72vh] w-full max-w-sm flex-col items-center overflow-hidden rounded-[44px] border border-white/15 bg-white/8 shadow-[0_40px_120px_rgba(16,27,55,0.6)] backdrop-blur-2xl"
-                initial={{ opacity: 0, y: 48 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.9, delay: 0.3 }}
-                whileHover={{ scale: 1.03 }}
-              >
-                <img
-                  src="/rect2.png"
-                  alt="Account area background"
-                  className="absolute inset-0 h-full w-full object-cover opacity-80"
-                />
-                <div className="absolute inset-0 bg-gradient-to-br from-black/55 via-black/45 to-black/60" />
-                <div className="relative z-10 flex h-full w-full flex-col items-center px-9 pt-12 text-white">
-                  <p className="text-xs uppercase tracking-[0.55em] text-white/60">Summer AI</p>
-                  <h2 className="mt-4 text-3xl font-semibold text-center leading-snug text-white">
-                    Personalized spaces for your team
-                  </h2>
-                  <p className="mt-4 text-sm text-center text-white/65">
-                    Collaborate in shared workspaces with real-time insights, governed access, and custom branding.
-                  </p>
-                  <div className="mt-12 flex w-full max-w-xs flex-col gap-4">
-                    <div className="overflow-hidden rounded-2xl border border-white/25 bg-white/12 px-6 py-4 text-center text-lg font-semibold uppercase tracking-wide backdrop-blur transition duration-300 hover:border-white/40 hover:bg-white/18">
-                      Login
-                    </div>
-                    <div className="overflow-hidden rounded-2xl border border-white/25 bg-white/12 px-6 py-4 text-center text-lg font-semibold uppercase tracking-wide backdrop-blur transition duration-300 hover:border-white/40 hover:bg-white/18">
-                      Sign Up
-                    </div>
+            {/* Bottom Left: Analytics Widget */}
+            <motion.div
+              className="absolute bottom-8 left-4 sm:bottom-16 sm:left-12 w-64 sm:w-80 hidden lg:block"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+              style={{
+                animation: 'float 6.5s ease-in-out infinite 1.5s'
+              }}
+            >
+              <div className="rounded-2xl bg-white p-6 shadow-2xl shadow-slate-900/10">
+                <div className="mb-4 text-sm font-semibold text-slate-900">Meeting Analytics</div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Action Items</span>
+                    <span className="text-2xl font-bold text-blue-600">12</span>
                   </div>
-                  <div className="mt-auto pb-12 text-center text-xs uppercase tracking-[0.35em] text-white/45">
-                    Coming Soon
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Participants</span>
+                    <span className="text-2xl font-bold text-cyan-600">8</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Duration</span>
+                    <span className="text-2xl font-bold text-purple-600">45m</span>
                   </div>
                 </div>
-              </motion.div>
-            </div>
-          </motion.div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full w-3/4 bg-gradient-to-r from-blue-500 to-cyan-500" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Bottom Right: Integrations */}
+            <motion.div
+              className="absolute bottom-12 right-4 sm:bottom-20 sm:right-16 hidden xl:block"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+              style={{
+                animation: 'float 5.5s ease-in-out infinite 2s'
+              }}
+            >
+              <div className="rounded-2xl bg-white p-6 shadow-2xl shadow-slate-900/15">
+                <div className="mb-3 text-sm font-semibold text-slate-900">6 Thinking Hats Analysis</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-pink-500 shadow-lg shadow-red-500/30">
+                    <span className="text-2xl font-bold text-white">R</span>
+                  </div>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg shadow-yellow-500/30">
+                    <span className="text-2xl font-bold text-white">Y</span>
+                  </div>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-green-400 to-emerald-500 shadow-lg shadow-green-500/30">
+                    <span className="text-2xl font-bold text-white">G</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </motion.section>
       )}
     </main>

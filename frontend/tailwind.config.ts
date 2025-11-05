@@ -20,6 +20,7 @@ const config = {
     extend: {
       fontFamily: {
         ubuntu: ['var(--font-ubuntu)', 'sans-serif'],
+        italianno: ['var(--font-italianno)', 'cursive'],
       },
       colors: {
         border: "hsl(var(--border))",

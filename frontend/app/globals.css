@@ -108,4 +108,14 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary) / 0.3) hsl(var(--muted));
   }
+
+  /* Floating animation for landing page elements */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
 }

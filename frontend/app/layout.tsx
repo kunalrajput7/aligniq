@@ -28,6 +28,11 @@ const ubuntu = localFont({
   variable: '--font-ubuntu',
 });
 
+const italianno = localFont({
+  src: '../public/fonts/Italianno/Italianno-Regular.ttf',
+  variable: '--font-italianno',
+});
+
 export const metadata: Metadata = {
   title: "Summer AI Studio",
   description: "Analyze and summarize your meeting transcripts with AI",
@@ -51,7 +56,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${ubuntu.variable} font-ubuntu antialiased`}>
+      <body className={`${ubuntu.variable} ${italianno.variable} font-ubuntu antialiased`}>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
           {children}
         </div>
