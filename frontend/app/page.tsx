@@ -486,7 +486,7 @@ export default function Home() {
         className="min-h-screen bg-slate-50 text-slate-900"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
+        transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] as const }}
       >
         <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="container mx-auto px-4 py-4">
@@ -530,7 +530,7 @@ export default function Home() {
     <motion.main
       className="relative min-h-screen overflow-hidden bg-[#F8FAFC]"
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.6, ease: [0.4, 0, 1, 1] }}
+      transition={{ duration: 0.6, ease: [0.4, 0, 1, 1] as const }}
     >
       {/* Subtle dot pattern background */}
       <div className="absolute inset-0 opacity-[0.015]" style={{
