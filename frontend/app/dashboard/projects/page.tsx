@@ -230,7 +230,7 @@ export default function ProjectsPage() {
                                             <span className="font-medium">Summer AI Insight</span>
                                         </div>
                                         <p className="text-sm text-amber-600 mt-1">
-                                            {project.meetings_count > 0
+                                            {(project.meetings_count ?? 0) > 0
                                                 ? `${project.meetings_count} meetings analyzed`
                                                 : 'Upload meetings to get insights'}
                                         </p>
