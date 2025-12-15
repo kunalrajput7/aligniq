@@ -1,0 +1,297 @@
+.mindmap-board {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  font-family: 'Inter', ui-sans-serif, system-ui;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 50%, #111827 100%);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.mindmap-board .react-flow__pane {
+  cursor: grab;
+}
+
+.mindmap-board .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+/* ========== ANIMATED NODE STYLES ========== */
+.mindmap-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-radius: 24px;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  padding: 16px 24px;
+  min-width: 180px;
+  color: #f8fafc;
+  cursor: pointer;
+  user-select: none;
+
+  /* Smooth transitions for all properties */
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease,
+    opacity 0.4s ease;
+
+  /* Glass effect shadow */
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mindmap-node:hover {
+  transform: translateY(-3px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.35),
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.mindmap-node:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+/* Root node special styling */
+.mindmap-node[data-type="root"] {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow:
+    0 8px 32px rgba(79, 70, 229, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.mindmap-node[data-type="root"]:hover {
+  box-shadow:
+    0 16px 48px rgba(79, 70, 229, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* Chapter nodes */
+.mindmap-node[data-type="chapter"] {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+}
+
+/* Claim/Point nodes */
+.mindmap-node[data-type="claim"] {
+  background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+}
+
+/* ========== NODE LABEL ========== */
+.mindmap-node-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  pointer-events: none;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  max-width: 100%;
+  white-space: normal;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ========== EXPAND/COLLAPSE TOGGLE ========== */
+.mindmap-node-toggle {
+  position: absolute;
+  top: 50%;
+  right: -48px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 10;
+
+  /* Smooth spring animation */
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease,
+    background-color 0.2s ease;
+
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.mindmap-node-toggle:hover {
+  transform: translateY(-50%) scale(1.15);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+}
+
+.mindmap-node-toggle:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+/* Rotate chevron on expand/collapse */
+.mindmap-node-toggle.collapsed {
+  transform: translateY(-50%) rotate(0deg);
+}
+
+.mindmap-node-toggle.expanded {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.mindmap-node-toggle:hover.collapsed {
+  transform: translateY(-50%) rotate(0deg) scale(1.15);
+}
+
+.mindmap-node-toggle:hover.expanded {
+  transform: translateY(-50%) rotate(180deg) scale(1.15);
+}
+
+/* ========== HANDLES (INVISIBLE) ========== */
+.mindmap-node .react-flow__handle {
+  width: 1px;
+  height: 1px;
+  border-radius: 9999px;
+  background: transparent;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ========== EDGE STYLES ========== */
+.mindmap-board .react-flow__edge-path {
+  stroke: rgba(148, 163, 184, 0.6);
+  stroke-width: 2;
+  transition: stroke 0.3s ease, stroke-width 0.3s ease;
+}
+
+.mindmap-board .react-flow__edge:hover .react-flow__edge-path {
+  stroke: rgba(148, 163, 184, 0.9);
+  stroke-width: 3;
+}
+
+/* Animated edge entrance */
+.mindmap-board .react-flow__edge {
+  animation: edgeFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes edgeFadeIn {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ========== ZOOM CONTROLS (HIDDEN) ========== */
+.mindmap-board .react-flow__attribution {
+  display: none;
+}
+
+.mindmap-board .react-flow__controls {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 12px;
+  color: #e2e8f0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mindmap-board .react-flow__controls-button {
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.2s ease;
+}
+
+.mindmap-board .react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mindmap-board .react-flow__controls-button svg {
+  fill: #e2e8f0;
+}
+
+/* ========== BACKGROUND ========== */
+.mindmap-board .react-flow__background {
+  opacity: 0.3;
+}
+
+/* ========== MINIMAP ========== */
+.mindmap-board .react-flow__minimap {
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ========== LOADING STATE ========== */
+.mindmap-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
+.mindmap-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 12px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ========== NODE ENTRANCE ANIMATION ========== */
+@keyframes nodeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.mindmap-node-animated {
+  animation: nodeSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Stagger children */
+.mindmap-node-animated:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.mindmap-node-animated:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.mindmap-node-animated:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.mindmap-node-animated:nth-child(4) {
+  animation-delay: 0.2s;
+}
+
+.mindmap-node-animated:nth-child(5) {
+  animation-delay: 0.25s;
+}

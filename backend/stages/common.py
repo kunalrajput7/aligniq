@@ -12,7 +12,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------- Defaults / Tunables ----------
-DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL") or os.getenv("AZURE_AI_DEPLOYMENT", "gpt-5-nano")
+# Use gpt-5-mini for all stages for consistent, high-quality output
+DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL") or os.getenv("AZURE_AI_DEPLOYMENT", "gpt-5-mini")
 
 # Character limits removed for unified architecture
 # No need to truncate or limit input size - modern models have large context windows

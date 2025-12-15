@@ -1,7 +1,7 @@
 """
 Stage 3: Narrative Synthesis
-Generate executive narrative summary and detailed chapter summaries.
-This stage focuses on storytelling and markdown formatting.
+Generate comprehensive executive summary and detailed chapter summaries.
+This stage focuses on creating clear, structured documentation that captures all important meeting details.
 """
 from __future__ import annotations
 import json
@@ -18,7 +18,7 @@ async def run_synthesis_stage_async(
     model: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Stage 3: Generate narrative summary and chapter summaries.
+    Stage 3: Generate comprehensive narrative summary and chapter summaries.
 
     Args:
         utterances: List of {speaker, text, start_ms, end_ms}
@@ -30,212 +30,145 @@ async def run_synthesis_stage_async(
 
     Returns:
         {
-            "narrative_summary": "Executive summary in markdown",
+            "narrative_summary": "Comprehensive executive summary in markdown",
             "chapters": [{chapter_id, title, start_ms, end_ms, topic_keywords, summary}]
         }
     """
     if not utterances:
         return _empty_synthesis(chapters)
 
-    # Build full transcript with timestamps
+    # Build transcript with speaker labels
     transcript_lines = []
     for utt in utterances:
         speaker = utt.get("speaker", "Unknown")
         text = utt.get("text", "").strip()
-        start_ms = utt.get("start_ms", 0)
-        timestamp = _fmt_local(start_ms)
         if text:
-            transcript_lines.append(f"[{timestamp}] {speaker}: {text}")
+            transcript_lines.append(f"{speaker}: {text}")
 
     full_transcript = "\n".join(transcript_lines)
 
-    # Build context from previous stages
+    # Build chapter context with keywords
     chapter_info = "\n".join([
-        f"- {ch.get('chapter_id', 'ch')}: {ch.get('title', 'Chapter')} "
-        f"({_fmt_local(ch.get('start_ms', 0))} - {_fmt_local(ch.get('end_ms', 0))}) "
-        f"Keywords: {', '.join(ch.get('topic_keywords', []))}"
+        f"- {ch.get('chapter_id')}: {ch.get('title')} - Topics: {', '.join(ch.get('topic_keywords', [])[:4])}"
         for ch in chapters
     ])
 
-    # Summarize extracted items for context (don't need full details)
-    action_summary = f"{len(action_items)} action items extracted (you don't need to list them - they're already structured)"
-    achievement_summary = f"{len(achievements)} achievements identified"
-    blocker_summary = f"{len(blockers)} blockers/concerns documented"
+    # Build action items summary for context
+    action_summary = ""
+    if action_items:
+        action_summary = "\n".join([
+            f"- {item.get('task', '')} (Owner: {item.get('owner', 'Unassigned')})"
+            for item in action_items[:8]
+        ])
 
-    # Build prompt
-    system_prompt = """You are an expert meeting analyst specializing in structured markdown documentation.
+    # System prompt focused on comprehensive summaries
+    system_prompt = """You are an expert at creating comprehensive, well-structured meeting documentation.
 
-Your task is to:
-1. Create a comprehensive EXECUTIVE SUMMARY in STRUCTURED MARKDOWN with BULLET POINTS
-2. Write detailed 3-5 paragraph SUMMARIES for each chapter
+Your goal: Create a COMPLETE executive summary that captures EVERYTHING important from the meeting.
 
-**CRITICAL FORMATTING REQUIREMENTS:**
-- ✅ MUST use bullet points (-) for all lists - this is MANDATORY
-- ✅ DO NOT write flowing paragraph text under topic sections
-- ✅ Each bullet = one specific, concrete point with details (names, dates, numbers)
-- ✅ Use ## headings for topic subsections within Key Discussion Topics
-- ✅ Use **bold** for main section headers
-- ✅ Be specific: include WHO said/decided WHAT, WHEN, WHY, HOW
+The summary should be detailed enough that someone who missed the meeting understands:
+- What was discussed and why
+- What decisions were made
+- What problems or concerns were raised
+- What the key takeaways are
+- What happens next
 
-**CONTENT INSTRUCTIONS:**
-- Action items, achievements, and blockers are ALREADY EXTRACTED - don't duplicate them
-- Reference them naturally if needed (e.g., "Bob was assigned deployment task")
-- Focus on SUBSTANCE: decisions, discussions, problems, solutions, technical details
-- Skip trivial details: connection issues, "can you hear me", setup problems
-- Make it comprehensive and detailed with concrete specifics
+Writing rules:
+- Use markdown formatting with clear headings
+- Use bullet points (-) for all lists
+- Be specific: include names, numbers, dates, details
+- Cover ALL major topics discussed
+- Make it comprehensive but scannable"""
 
-**CRITICAL: DO NOT include timestamps in narrative summary**
-- ❌ NEVER write: "Thomas explained... (00:04:37–00:05:04)"
-- ❌ NEVER write: "At 00:02:33, the team discussed..."
-- ✅ ALWAYS write: "Thomas explained that .md files are the canonical format"
-- Timestamps are ONLY for evidence arrays in action items"""
-
-    user_prompt = f"""Analyze this meeting transcript and create narrative summaries.
-
-⚠️ IMPORTANT: The narrative_summary MUST use BULLET POINTS (-) for all lists. DO NOT write flowing paragraphs under topic sections. Follow the format EXACTLY as shown in the examples below.
+    user_prompt = f"""Create a comprehensive executive summary of this meeting.
 
 TRANSCRIPT:
 {full_transcript}
 
-CHAPTER STRUCTURE:
+CHAPTERS COVERED:
 {chapter_info}
 
-CONTEXT FROM STAGE 2 (already extracted - don't duplicate):
-- {action_summary}
-- {achievement_summary}
-- {blocker_summary}
+ACTION ITEMS IDENTIFIED:
+{action_summary if action_summary else "No specific action items identified"}
 
-Provide a JSON response with the following EXACT structure:
+Return JSON with this structure:
 
 {{
-  "narrative_summary": "...",
+  "narrative_summary": "comprehensive markdown summary",
   "chapters": [
-    {{
-      "chapter_id": "ch1",
-      "summary": "Detailed 3-5 paragraph markdown summary of this chapter"
-    }}
+    {{"chapter_id": "ch1", "summary": "detailed chapter summary"}}
   ]
 }}
 
-**NARRATIVE SUMMARY FORMAT:**
+=== NARRATIVE SUMMARY FORMAT ===
 
-The narrative_summary MUST follow this EXACT structure. DO NOT write flowing paragraphs - use BULLET POINTS:
+Create a COMPREHENSIVE summary following this structure:
 
-```markdown
-**Meeting Overview**
-A brief 2-3 sentence paragraph describing the meeting's purpose and primary objectives. Skip trivial details like connection issues.
+**Executive Overview**
+A 3-4 sentence paragraph summarizing the meeting's purpose, main outcomes, and key decisions. This should give readers the essential context immediately.
 
-**Key Discussion Topics**
-Break discussions into clear subsections with ## headings. Each topic MUST use bullet points:
+**Key Takeaways**
+- Most important insight or decision #1
+- Most important insight or decision #2
+- Most important insight or decision #3
+- Most important insight or decision #4
+(List 4-6 bullet points capturing the most critical outcomes)
 
-## [Topic Name 1]
-- Specific point about what was discussed
-- Key technical details, numbers, dates, or metrics
-- Who led or contributed significantly to this discussion
-- Any decisions, conclusions, or outcomes from this topic
-- Additional relevant details or context
+**Discussion Topics**
 
-## [Topic Name 2]
-- Specific point about this topic area
-- Technical details and concrete specifics
-- Contributors and their key perspectives or proposals
-- Outcomes, next steps, or unresolved questions
-- Additional insights or connections to other topics
+## [First Major Topic]
+- Key point discussed with specific details
+- Who contributed and what they said
+- Decisions made or conclusions reached
+- Any concerns or considerations raised
+- Next steps related to this topic
 
-(Continue for all major topics – typically 2-5 main discussion areas)
+## [Second Major Topic]
+- Specific discussion points with details
+- Contributors and their perspectives
+- Outcomes or agreements
+- Open questions or follow-ups needed
 
-**Decisions Made**
-- Decision 1: Brief description with who made it and why
-- Decision 2: Include context and rationale for the decision
-- Decision 3: Note any conditions, dependencies, or follow-up required
-- (Continue for all significant decisions)
+## [Third Major Topic]
+(Continue for each major topic - typically 3-6 topics)
 
-**Concerns & Challenges**
-- Concern 1: Brief description of the risk or challenge
-- Proposed solution or mitigation approach (if discussed)
-- Concern 2: Another risk or blocker mentioned
-- Any unresolved concerns requiring follow-up action
-- (Continue for all concerns raised)
-```
+**Decisions & Agreements**
+- Decision 1: What was decided, who made it, rationale
+- Decision 2: Details and any conditions
+- Decision 3: Context and follow-up required
+(List ALL significant decisions made during the meeting)
 
-**CRITICAL FORMATTING RULES - FOLLOW EXACTLY:**
-1. ✅ Use **Bold** for main section headers: **Meeting Overview**, **Key Discussion Topics**, **Decisions Made**, **Concerns & Challenges**
-2. ✅ Use ## for topic subsections ONLY within Key Discussion Topics (e.g., ## Project Timeline, ## Budget Discussion)
-3. ✅ Use bullet points (-) for ALL lists in ALL sections - MANDATORY
-4. ✅ Each bullet point should be ONE clear, complete idea (1-2 sentences max)
-5. ✅ DO NOT write flowing narrative paragraphs under topics - ONLY bullet points
-6. ✅ DO NOT write multi-paragraph text blocks - break into bullets
-7. ✅ Skip trivial details: connection issues, "can you hear me", technical setup problems
-8. ✅ Focus on SUBSTANCE: decisions, discussions, problems, solutions, technical details
-9. ✅ Reference action items/achievements naturally if needed (e.g., "Bob was assigned to deploy the API") but don't create duplicate lists
-10. ✅ Make every bullet count - include specific details, names, dates, numbers
+**Risks & Concerns**
+- Concern 1: Description and impact
+- Concern 2: Proposed mitigation if discussed
+- Concern 3: Owner or follow-up needed
+(List ALL risks, concerns, or challenges raised)
 
-**EXAMPLE OF CORRECT FORMAT:**
-```markdown
-**Meeting Overview**
-The team discussed Q4 product launch timeline and resource allocation. Primary goal was to align engineering and marketing on deliverables and identify blockers.
+**Next Steps**
+- Action 1: What needs to happen next
+- Action 2: Key follow-up items
+- Action 3: Important deadlines or milestones
+(Brief list of immediate next steps - detailed action items are tracked separately)
 
-**Key Discussion Topics**
+=== FORMATTING RULES ===
 
-## Product Launch Timeline
-- Target launch date confirmed as December 15, 2024
-- Engineering team (led by Sarah) needs 6 weeks for final testing
-- Marketing (Bob) requires 2 weeks advance notice for campaign prep
-- Risk identified: holiday season may impact customer onboarding
-- Decision to add buffer week for contingencies
+1. Use **bold** for section headers (Executive Overview, Key Takeaways, etc.)
+2. Use ## for topic subsections under Discussion Topics
+3. Use bullet points (-) for ALL lists
+4. Each bullet should be 1-2 sentences with specific details
+5. Include names when relevant (who said what, who decided)
+6. Include numbers/dates when mentioned
+7. Be thorough - cover ALL significant discussions
 
-## Resource Allocation
-- Current team: 3 engineers, 2 designers, 1 PM
-- Need to hire additional QA engineer by November 1
-- Budget approved for contractor support ($50K)
-- Design team requested Figma enterprise license
-- Agreement reached to reallocate sprint capacity
+=== CHAPTER SUMMARIES ===
 
-**Decisions Made**
-- Launch date set for December 15, 2024 (decision by VP Product)
-- Hire QA engineer with budget approval from Finance
-- Approve Figma enterprise license ($500/month)
-- Reallocate 30% of sprint capacity to launch prep starting next week
+For each chapter, write 2-4 paragraphs covering:
+- Main focus and what was discussed
+- Key contributors and their points
+- Decisions made or conclusions reached
+- How it connects to the overall meeting goals
 
-**Concerns & Challenges**
-- Holiday timing may reduce initial user engagement (Sarah)
-- Proposed solution: extend onboarding period to January
-- QA hiring timeline is tight (only 3 weeks)
-- Budget constraints may limit contractor hours
-- API integration with legacy system still unresolved
-```
-
-**WHAT NOT TO DO - EXAMPLES OF WRONG FORMAT:**
-❌ Writing paragraphs: "The team engaged in a comprehensive discussion about the product launch timeline. They explored various aspects including the target date, resource requirements, and potential risks. Sarah from engineering provided valuable input..."
-❌ NO BULLET POINTS: Just writing flowing text
-❌ Vague bullets: "Discussed timeline" (too vague - be specific!)
-❌ Missing names: "Someone mentioned budget" (who? be specific!)
-❌ Missing details: "Date was decided" (what date? when? by whom?)
-
-**CHAPTER SUMMARIES:**
-
-For EACH chapter in the chapters array, provide a detailed summary (3-5 paragraphs in markdown):
-- What was the main focus of this chapter?
-- What were the key points discussed?
-- Who were the main contributors?
-- What decisions or outcomes emerged?
-- How does this connect to other chapters?
-
-Format each chapter summary with:
-- Clear topic sentences
-- Specific details from the transcript
-- Natural flow and transitions
-- Markdown formatting where appropriate (**bold** for emphasis)
-
-**QUALITY GUIDELINES:**
-- Be comprehensive but concise
-- Use proper markdown syntax
-- Focus on substance over process
-- Tell a coherent story
-- Make it easy to understand for someone who wasn't in the meeting
-- Don't duplicate the structured data (action items, achievements, blockers) - they're already available separately
-
-Return ONLY valid JSON with no additional text."""
+Return ONLY valid JSON."""
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -246,24 +179,16 @@ Return ONLY valid JSON with no additional text."""
         import time
         start_time = time.time()
 
-        # Use stage-specific model configuration
-        # Stage 3: Creative synthesis with GPT-5 Mini for better narrative quality
         stage_model = model if model else STAGE3_MODEL
-        print(f"[STAGE 3] Starting narrative synthesis...")
+        print(f"[STAGE 3] Starting comprehensive narrative synthesis...")
         print(f"[STAGE 3] Model: {stage_model}")
-
-        # GPT-5 Nano and GPT-5 Mini only support default temperature (1.0)
-        # Skip temperature parameter for both models
-        temp = None if ("nano" in stage_model.lower() or "mini" in stage_model.lower()) else 0.4
 
         response_text = await call_ollama_cloud_async(
             model=stage_model,
             messages=messages,
             json_mode=True,
             endpoint=STAGE3_ENDPOINT,
-            api_key=STAGE3_KEY,
-            temperature=temp  # Moderate temperature for creative synthesis with consistency (if supported)
-            # No max_tokens limit - let model use as many tokens as needed for reasoning + output
+            api_key=STAGE3_KEY
         )
         result = json.loads(response_text)
 

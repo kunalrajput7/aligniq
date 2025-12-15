@@ -20,6 +20,7 @@ from stages.stage1_foundation import run_foundation_stage_async
 from stages.stage2_extraction import run_extraction_stage_async
 from stages.stage3_synthesis import run_synthesis_stage_async
 from stages.stage4_mindmap import build_mindmap_async
+from utils.supabase_client import save_meeting_results, update_meeting_details
 
 CONFIDENCE_KEYWORDS = {
     "very high": 0.95,
@@ -94,28 +95,28 @@ def _format_timestamp_ms(ms: Any) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def _normalize_evidence(evidence_list: Any) -> List[Dict[str, str]]:
-    normalized: List[Dict[str, str]] = []
-    if not isinstance(evidence_list, list):
-        return normalized
-
-    for entry in evidence_list:
-        if not isinstance(entry, dict):
-            continue
-        quote = _clean_text(entry.get("quote") or entry.get("text"))
-        if not quote:
-            continue
-        timestamp = entry.get("t") or entry.get("timestamp") or entry.get("time")
-        if not timestamp:
-            timestamp = _format_timestamp_ms(entry.get("timestamp_ms"))
-        timestamp_str = _clean_text(timestamp)
-        normalized.append(
-            {
-                "t": timestamp_str,
-                "quote": quote,
+def _normalize_evidence(evidence_data: Any) -> Dict[str, str]:
+    """Normalize evidence to speaker+quote format (no timestamps)."""
+    if not evidence_data:
+        return {"speaker": "", "quote": ""}
+    
+    # Handle dict format (new format: {speaker, quote})
+    if isinstance(evidence_data, dict):
+        return {
+            "speaker": _clean_text(evidence_data.get("speaker", "")),
+            "quote": _clean_text(evidence_data.get("quote", evidence_data.get("text", "")))
+        }
+    
+    # Handle list format (legacy: take first item)
+    if isinstance(evidence_data, list) and len(evidence_data) > 0:
+        first = evidence_data[0]
+        if isinstance(first, dict):
+            return {
+                "speaker": _clean_text(first.get("speaker", "")),
+                "quote": _clean_text(first.get("quote", first.get("text", "")))
             }
-        )
-    return normalized
+    
+    return {"speaker": "", "quote": ""}
 
 
 def _ensure_markdown_headings(text: str) -> str:
@@ -211,7 +212,9 @@ def _normalize_action_items(items: Any) -> List[Dict[str, Any]]:
             deadline = ""
 
         status = _clean_text(item.get("status") or item.get("state") or "pending", "pending")
-        confidence = _normalize_confidence(item.get("confidence"), default=0.75)
+        priority = _clean_text(item.get("priority") or "medium", "medium").lower()
+        if priority not in {"high", "medium", "low"}:
+            priority = "medium"
 
         key = (task.lower(), owner.lower(), deadline.lower())
         if key in seen:
@@ -223,8 +226,9 @@ def _normalize_action_items(items: Any) -> List[Dict[str, Any]]:
                 "task": task,
                 "owner": owner or "Unassigned",
                 "deadline": deadline,
+                "priority": priority,
                 "status": status or "pending",
-                "confidence": confidence,
+                "evidence": _normalize_evidence(item.get("evidence")),
             }
         )
     return normalized
@@ -286,10 +290,11 @@ def _normalize_blockers(items: Any) -> List[Dict[str, Any]]:
         else:
             member = _clean_text(affected)
         member = member or "Unknown"
-        owner = _clean_text(
-            item.get("owner") or item.get("responsible") or item.get("assignee"),
-            "Unassigned",
-        )
+        
+        severity = _clean_text(item.get("severity") or "major", "major").lower()
+        if severity not in {"critical", "major", "minor"}:
+            severity = "major"
+
         key = blocker.lower()
         if key in seen:
             continue
@@ -299,8 +304,7 @@ def _normalize_blockers(items: Any) -> List[Dict[str, Any]]:
             {
                 "blocker": blocker,
                 "member": member,
-                "owner": owner or "Unassigned",
-                "confidence": _normalize_confidence(item.get("confidence"), default=0.65),
+                "severity": severity,
                 "evidence": _normalize_evidence(item.get("evidence")),
             }
         )
@@ -355,8 +359,9 @@ def _normalize_timeline(items: Any) -> List[Dict[str, Any]]:
     for item in items:
         if not isinstance(item, dict):
             continue
-        text = _clean_text(item.get("text"))
-        if not text:
+        # Handle both 'event' (new) and 'text' (legacy) field names
+        event = _clean_text(item.get("event") or item.get("text"))
+        if not event:
             continue
         timestamp_ms = item.get("timestamp_ms")
         if timestamp_ms is None:
@@ -371,7 +376,7 @@ def _normalize_timeline(items: Any) -> List[Dict[str, Any]]:
         normalized.append(
             {
                 "timestamp_ms": ts_int,
-                "text": text,
+                "event": event,
                 "speakers": speakers,
             }
         )
@@ -494,6 +499,8 @@ async def run_pipeline_async(
     vtt_content: str,
     model: Optional[str] = None,
     segment_len_ms: int = 600_000,  # Deprecated parameter, kept for API compatibility
+    user_id: Optional[str] = None,
+    meeting_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Run the 3-stage meeting summarization pipeline for optimal quality and efficiency.
@@ -732,6 +739,33 @@ async def run_pipeline_async(
     print("[PIPELINE] Total API calls: 4 (Stage 1-3 + mindmap)")
     print("=" * 70 + "\n")
 
+    # Save to Supabase if meeting_id is provided (MUST be before return!)
+    if meeting_id:
+        print(f"[PIPELINE] Saving results to Supabase for meeting {meeting_id}...")
+        try:
+            # Update meeting details including timeline
+            await update_meeting_details(
+                meeting_id,
+                meeting_details["title"],
+                meeting_details["duration_ms"],
+                meeting_details["participants"],
+                timeline_json=timeline  # Save timeline to meetings table
+            )
+            # Save analysis results to meeting_summaries table
+            await save_meeting_results(
+                meeting_id,
+                collective_summary,
+                mindmap,
+                chapters,
+                hats,
+                timeline=timeline
+            )
+            print("[PIPELINE] ✓ Saved to Supabase successfully!")
+        except Exception as e:
+            print(f"[PIPELINE] Error saving to Supabase: {e}")
+            import traceback
+            traceback.print_exc()
+
     return {
         "meeting_details": meeting_details,
         "collective_summary": collective_summary,
@@ -740,5 +774,4 @@ async def run_pipeline_async(
         "timeline": timeline,
         "mindmap": mindmap,
     }
-
 

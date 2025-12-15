@@ -23,119 +23,95 @@ async def run_foundation_stage_async(
     Returns:
         {
             "meeting_details": {title, date, duration_ms, participants, unknown_count},
-            "timeline": [{timestamp_ms, text, speakers}],
+            "timeline": [{timestamp_ms, event, speakers}],
             "chapters": [{chapter_id, title, start_ms, end_ms, topic_keywords}]
         }
     """
     if not utterances:
         return _empty_foundation()
 
-    # Build full transcript with timestamps
+    # Build full transcript with speaker labels (no timestamps in output)
     transcript_lines = []
     for utt in utterances:
         speaker = utt.get("speaker", "Unknown")
         text = utt.get("text", "").strip()
         start_ms = utt.get("start_ms", 0)
-        timestamp = _fmt_local(start_ms)
         if text:
-            transcript_lines.append(f"[{timestamp}] {speaker}: {text}")
+            transcript_lines.append(f"[{_fmt_local(start_ms)}] {speaker}: {text}")
 
     full_transcript = "\n".join(transcript_lines)
 
     # Calculate meeting duration
     duration_ms = utterances[-1].get("end_ms", 0) if utterances else 0
 
-    # Build prompt
-    system_prompt = """You are an expert meeting analyst specializing in structural analysis.
+    # Build optimized prompt using best practices
+    system_prompt = """You are an expert meeting analyst. Extract the structural foundation of meetings with precision and clarity.
 
-Your task is to extract the foundational structure of the meeting:
-1. Meeting metadata (objective facts)
-2. Timeline of key moments (8-15 critical points)
-3. Chapter boundaries (3-7 thematic sections)
+Your role: Identify meeting metadata, key moments, and thematic chapters.
 
-Be precise with timestamps and focus on objective, structural elements."""
+Output requirements:
+- Be factual and objective
+- Use actual content from the transcript
+- Create clear, professional labels
+- Ensure complete coverage of the meeting"""
 
-    user_prompt = f"""Analyze this meeting transcript and extract the foundational structure.
+    user_prompt = f"""Analyze this meeting transcript and extract its structure.
 
 TRANSCRIPT:
 {full_transcript}
 
-MEETING METADATA:
-- Total utterances: {len(utterances)}
+MEETING INFO:
+- Utterances: {len(utterances)}
 - Duration: {_fmt_local(duration_ms)}
 
-Provide a JSON response with the following EXACT structure:
+Return a JSON object with this EXACT structure:
 
 {{
   "meeting_details": {{
-    "title": "A concise, descriptive meeting title (3-8 words)",
-    "date": "YYYY-MM-DD (use today's date if not mentioned)",
+    "title": "Professional 3-8 word title capturing the meeting's purpose",
+    "date": "YYYY-MM-DD format (today if not mentioned)",
     "duration_ms": {duration_ms},
-    "participants": ["Alice", "Bob", "Charlie"],
+    "participants": ["List", "of", "unique", "speaker", "names"],
     "unknown_count": 0
   }},
-
   "timeline": [
     {{
       "timestamp_ms": 0,
-      "text": "Meeting started - introduction and agenda setting",
-      "speakers": ["Alice"]
-    }},
-    {{
-      "timestamp_ms": 120000,
-      "text": "Key decision point or important discussion",
-      "speakers": ["Bob", "Alice"]
+      "event": "Brief description of what happened at this moment",
+      "speakers": ["Who was involved"]
     }}
   ],
-
   "chapters": [
     {{
       "chapter_id": "ch1",
-      "title": "Introduction & Agenda",
+      "title": "Clear 3-6 word chapter title",
       "start_ms": 0,
       "end_ms": 180000,
-      "topic_keywords": ["agenda", "introductions", "goals"]
-    }},
-    {{
-      "chapter_id": "ch2",
-      "title": "Technical Discussion",
-      "start_ms": 180000,
-      "end_ms": 480000,
-      "topic_keywords": ["architecture", "implementation", "requirements"]
+      "topic_keywords": ["keyword1", "keyword2", "keyword3"]
     }}
   ]
 }}
 
-INSTRUCTIONS:
+EXTRACTION GUIDELINES:
 
-**Meeting Details:**
-- title: Create a concise, professional title that captures the meeting's purpose
-- date: Use format YYYY-MM-DD (default to today if not mentioned)
-- participants: List all unique speakers (exclude "Unknown")
-- unknown_count: Count of "Unknown" speaker utterances
+Meeting Details:
+- title: Capture the main purpose (e.g., "Q4 Product Launch Planning")
+- participants: Extract all unique speaker names, exclude "Unknown"
+- unknown_count: Count utterances from "Unknown" speakers
 
-**Timeline (8-15 key moments):**
-- Select the MOST IMPORTANT moments that define the meeting flow
-- Include: decisions, topic transitions, key announcements, important questions, critical discussions
-- Use actual timestamps from the transcript
-- Be specific about what happened
-- List all speakers involved in that moment
+Timeline (8-15 key moments):
+- Select defining moments: decisions, announcements, topic shifts, key questions
+- Spread events across the entire meeting duration
+- event: Write clear, specific descriptions of what happened
+- speakers: List who was speaking at that moment
 
-**Chapters (3-7 thematic sections):**
-- Divide the meeting into logical thematic chapters based on topic shifts
-- Each chapter should represent a distinct discussion topic or meeting phase
-- chapter_id: Use format "ch1", "ch2", etc.
-- title: Clear, descriptive chapter title (3-6 words)
-- start_ms and end_ms: Actual timestamps that define the chapter boundaries
-- topic_keywords: 3-5 keywords that characterize this chapter's content
+Chapters (3-7 thematic sections):
+- Group discussion into logical topic areas
+- Chapters must not overlap and should cover the full meeting
+- title: Create descriptive titles (e.g., "Budget Review", "Technical Architecture")
+- topic_keywords: 3-5 words that characterize the chapter content
 
-**Quality Guidelines:**
-- Use ACTUAL timestamps from the transcript (don't fabricate)
-- Chapters should not overlap and should cover the entire meeting
-- Timeline moments should be spread throughout the meeting (not clustered)
-- Be objective - focus on structure, not interpretation
-
-Return ONLY valid JSON with no additional text."""
+Return ONLY valid JSON."""
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -146,24 +122,16 @@ Return ONLY valid JSON with no additional text."""
         import time
         start_time = time.time()
 
-        # Use stage-specific model configuration
-        # Stage 1: Fast extraction with GPT-5 Nano (or configured model)
         stage_model = model if model else STAGE1_MODEL
         print(f"[STAGE 1] Starting foundation extraction...")
         print(f"[STAGE 1] Model: {stage_model}")
-
-        # GPT-5 Nano only supports default temperature (1.0)
-        # Only set temperature if NOT using nano
-        temp = None if "nano" in stage_model.lower() else 0.2
 
         response_text = await call_ollama_cloud_async(
             model=stage_model,
             messages=messages,
             json_mode=True,
             endpoint=STAGE1_ENDPOINT,
-            api_key=STAGE1_KEY,
-            temperature=temp  # Low temperature for deterministic extraction (if supported)
-            # No max_tokens limit - let model use as many tokens as needed for reasoning + output
+            api_key=STAGE1_KEY
         )
         result = json.loads(response_text)
 
@@ -220,13 +188,12 @@ def _normalize_foundation(result: Dict[str, Any], utterances: List[Dict[str, Any
     if not isinstance(timeline, list):
         timeline = []
 
-    # Ensure timeline points have required fields
     normalized_timeline = []
     for point in timeline:
-        if isinstance(point, dict) and "timestamp_ms" in point and "text" in point:
+        if isinstance(point, dict) and "timestamp_ms" in point:
             normalized_timeline.append({
                 "timestamp_ms": int(point.get("timestamp_ms", 0)),
-                "text": str(point.get("text", "")).strip(),
+                "event": str(point.get("event", point.get("text", ""))).strip(),
                 "speakers": point.get("speakers", [])
             })
 
@@ -235,7 +202,6 @@ def _normalize_foundation(result: Dict[str, Any], utterances: List[Dict[str, Any
     if not isinstance(chapters, list):
         chapters = []
 
-    # Ensure chapters have required fields
     normalized_chapters = []
     for i, chapter in enumerate(chapters):
         if isinstance(chapter, dict):

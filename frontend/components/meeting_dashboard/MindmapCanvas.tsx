@@ -17,12 +17,16 @@ import ReactFlow, {
   Edge,
   NodeProps,
   DefaultEdgeOptions,
+  Controls,
+  useReactFlow,
 } from 'reactflow';
 import type { ReactFlowInstance } from 'reactflow';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode } from 'elkjs';
 import 'reactflow/dist/style.css';
 import { Mindmap, MindmapNode } from '@/types/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronRight } from 'lucide-react';
 import './mindmap.css';
 
 type NodeData = {
@@ -33,13 +37,14 @@ type NodeData = {
   onToggle: (id: string) => void;
   width: number;
   height: number;
+  isNew?: boolean;
 };
 
 const palette: Record<string, string> = {
   root: '#4f46e5',
-  theme: '#2563eb',
-  chapter: '#7c3aed',
-  claim: '#0ea5e9',
+  theme: '#3b82f6',
+  chapter: '#374151',
+  claim: '#475569',
   topic: '#6366f1',
   decision: '#2563eb',
   action: '#0ea5e9',
@@ -47,17 +52,41 @@ const palette: Record<string, string> = {
   blocker: '#ef4444',
   concern: '#ea580c',
 };
+// Dynamic node sizing based on text content
+const calculateNodeSize = (label: string, type: string): { width: number; height: number } => {
+  const textLength = label.length;
 
-const NODE_SIZE: Record<string, { width: number; height: number }> = {
-  root: { width: 400, height: 120 },
-  theme: { width: 350, height: 100 },
-  chapter: { width: 350, height: 100 },
-  claim: { width: 350, height: 100 },
-  action: { width: 350, height: 100 },
-  achievement: { width: 350, height: 100 },
-  blocker: { width: 350, height: 100 },
-  decision: { width: 350, height: 100 },
-  concern: { width: 350, height: 100 },
+  // Base sizes per type
+  const baseWidth: Record<string, number> = {
+    root: 220,
+    chapter: 200,
+    claim: 180,
+    theme: 200,
+    action: 180,
+    achievement: 180,
+    blocker: 180,
+    decision: 180,
+    concern: 180,
+  };
+
+  // Calculate width: base + extra for longer text
+  const base = baseWidth[type] ?? 180;
+  const charsPerLine = 25; // Approximate characters per line
+  const estimatedLines = Math.ceil(textLength / charsPerLine);
+
+  // Width: grows slightly with text, capped at max
+  const minWidth = base;
+  const maxWidth = type === 'root' ? 350 : 300;
+  const width = Math.min(maxWidth, Math.max(minWidth, base + Math.min(textLength * 1.5, 80)));
+
+  // Height: grows with number of lines
+  const lineHeight = 22;
+  const basePadding = 40;
+  const minHeight = type === 'root' ? 60 : 50;
+  const calculatedHeight = basePadding + (estimatedLines * lineHeight);
+  const height = Math.max(minHeight, calculatedHeight);
+
+  return { width: Math.round(width), height: Math.round(height) };
 };
 
 const elk = new ELK();
@@ -65,68 +94,96 @@ const elk = new ELK();
 const layoutOptions = {
   algorithm: 'layered',
   'elk.direction': 'RIGHT',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '200',
-  'elk.spacing.nodeNode': '80',
-  'elk.spacing.edgeNode': '70',
-  'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '180',
+  'elk.spacing.nodeNode': '50',
+  'elk.spacing.edgeNode': '40',
+  'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+  'elk.edgeRouting': 'SPLINES',
+  'elk.layered.compaction.postCompaction.strategy': 'NONE',
+  'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
 };
 
 interface MindmapCanvasProps {
   mindmap: Mindmap;
 }
 
-/** ELK augments nodes with positions; we extend the type to include x/y. */
 type LaidOutElkNode = ElkNode & { x?: number; y?: number; children?: LaidOutElkNode[] };
 
+// Animated Node Component
 const MindmapNodeCard = memo<NodeProps<NodeData>>(({ data, id }) => {
-  const { label, type, hasChildren, collapsed, onToggle, width, height } = data;
+  const { label, type, hasChildren, collapsed, onToggle, width, height, isNew } = data;
   const color = palette[type] ?? palette.theme;
-  const gradient = `linear-gradient(135deg, ${color}F2, ${color}D0)`;
-  const borderColor = `${color}80`;
+
+  // Create gradient based on node type
+  const getGradient = () => {
+    if (type === 'root') return `linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)`;
+    if (type === 'chapter') return `linear-gradient(135deg, #374151 0%, #4b5563 100%)`;
+    return `linear-gradient(135deg, #475569 0%, #64748b 100%)`;
+  };
 
   return (
-    <div
+    <motion.div
+      initial={isNew ? { opacity: 0, scale: 0.8, x: -20 } : false}
+      animate={{ opacity: 1, scale: 1, x: 0 }}
+      transition={{
+        type: "spring",
+        stiffness: 300,
+        damping: 25,
+        delay: isNew ? 0.1 : 0
+      }}
       className="mindmap-node"
       data-type={type}
-      style={{ background: gradient, borderColor, width, minHeight: height, height: 'auto' }}
+      style={{
+        background: getGradient(),
+        width,
+        minHeight: height,
+        height: 'auto'
+      }}
     >
       <Handle
         type="target"
         position={Position.Left}
         style={{
-          left: -16,
+          left: -8,
           top: '50%',
           transform: 'translateY(-50%)',
           pointerEvents: 'none',
         }}
         isConnectable={false}
       />
+
       <div className="mindmap-node-label">{label}</div>
+
       {hasChildren && (
-        <button
-          className="mindmap-node-toggle"
-          style={{ color }}
+        <motion.button
+          className={`mindmap-node-toggle ${collapsed ? 'collapsed' : 'expanded'}`}
+          style={{ borderColor: color, color }}
           onClick={(event) => {
             event.stopPropagation();
             onToggle(id);
           }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          animate={{ rotate: collapsed ? 0 : 90 }}
+          transition={{ type: "spring", stiffness: 400, damping: 20 }}
           aria-label={collapsed ? 'Expand' : 'Collapse'}
         >
-          {collapsed ? '>' : '<'}
-        </button>
+          <ChevronRight size={16} />
+        </motion.button>
       )}
+
       <Handle
         type="source"
         position={Position.Right}
         style={{
-          right: hasChildren ? -60 : -18,
+          right: hasChildren ? -52 : -8,
           top: '50%',
           transform: 'translateY(-50%)',
           pointerEvents: 'none',
         }}
         isConnectable={false}
       />
-    </div>
+    </motion.div>
   );
 });
 MindmapNodeCard.displayName = 'MindmapNodeCard';
@@ -134,26 +191,21 @@ MindmapNodeCard.displayName = 'MindmapNodeCard';
 const nodeTypes = { mindmapNode: MindmapNodeCard };
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
-  type: 'smoothstep',
-  markerEnd: {
-    type: MarkerType.ArrowClosed,
-    width: 14,
-    height: 14,
-    color: '#aeb5ff',
-  },
+  type: 'bezier',
+  animated: false,
   style: {
-    stroke: '#aeb5ff',
+    stroke: 'rgba(148, 163, 184, 0.6)',
     strokeWidth: 2,
   },
 };
 
-/** Returns a known size for each node type. */
-const getNodeSize = (type: string) => NODE_SIZE[type] ?? NODE_SIZE.claim;
+// Removed getNodeSize - using calculateNodeSize instead
 
 const buildGraph = (
   mindmap: Mindmap,
   collapsed: Set<string>,
-  onToggle: (id: string) => void
+  onToggle: (id: string) => void,
+  prevNodeIds: Set<string>
 ): { nodes: Node<NodeData>[]; edges: Edge[] } => {
   const rootId = mindmap.center_node.id;
   const parentMap = new Map<string, string>();
@@ -177,33 +229,35 @@ const buildGraph = (
   const nodes: Node<NodeData>[] = [];
   const edges: Edge[] = [];
 
-  // Root
+  // Root node
   const rootChildren = childrenMap.get(rootId) ?? [];
-  const rootSize = getNodeSize('root');
+  const rootLabel = mindmap.center_node.label;
+  const rootSize = calculateNodeSize(rootLabel, 'root');
   nodes.push({
     id: rootId,
     type: 'mindmapNode',
     position: { x: 0, y: 0 },
     data: {
-      label: mindmap.center_node.label,
+      label: rootLabel,
       type: 'root',
       hasChildren: rootChildren.length > 0,
       collapsed: collapsed.has(rootId),
       onToggle,
       width: rootSize.width,
       height: rootSize.height,
+      isNew: !prevNodeIds.has(rootId),
     },
     draggable: false,
     selectable: false,
   });
 
-  // Others
+  // Child nodes
   for (const node of mindmap.nodes) {
     if (!isVisible(node.id)) continue;
     const parentId = parentMap.get(node.id);
     if (!parentId || !isVisible(parentId)) continue;
 
-    const nodeSize = getNodeSize(node.type);
+    const nodeSize = calculateNodeSize(node.label, node.type);
     const hasChildren = (childrenMap.get(node.id) ?? []).length > 0;
 
     nodes.push({
@@ -218,6 +272,7 @@ const buildGraph = (
         onToggle,
         width: nodeSize.width,
         height: nodeSize.height,
+        isNew: !prevNodeIds.has(node.id),
       },
       draggable: false,
       selectable: false,
@@ -227,16 +282,9 @@ const buildGraph = (
       id: `${parentId}->${node.id}`,
       source: parentId,
       target: node.id,
-      // per-edge styling (compatible with DefaultEdgeOptions)
-      type: 'smoothstep',
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: 14,
-        height: 14,
-        color: '#aeb5ff',
-      },
+      type: 'bezier',
       style: {
-        stroke: '#aeb5ff',
+        stroke: 'rgba(148, 163, 184, 0.6)',
         strokeWidth: 2,
       },
     });
@@ -249,7 +297,6 @@ const layoutGraph = async (
   nodes: Node<NodeData>[],
   edges: Edge[]
 ): Promise<{ nodes: Node<NodeData>[]; edges: Edge[] }> => {
-  // Nothing to lay out
   if (nodes.length === 0) return { nodes, edges };
 
   const graph = {
@@ -257,8 +304,8 @@ const layoutGraph = async (
     layoutOptions,
     children: nodes.map((node) => ({
       id: node.id,
-      width: (node.data?.width ?? 300) + (node.data?.hasChildren ? 80 : 0),
-      height: node.data?.height ?? 80,
+      width: (node.data?.width ?? 280) + (node.data?.hasChildren ? 60 : 0),
+      height: node.data?.height ?? 60,
     })),
     edges: edges.map((edge) => ({
       id: edge.id,
@@ -289,7 +336,9 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodes, setNodes] = useState<Node<NodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [isLayouting, setIsLayouting] = useState(true);
   const reactFlowRef = useRef<ReactFlowInstance | null>(null);
+  const prevNodeIdsRef = useRef<Set<string>>(new Set());
 
   const toggleNode = useCallback((id: string) => {
     setCollapsed((prev) => {
@@ -301,24 +350,34 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
   }, []);
 
   const graph = useMemo(
-    () => buildGraph(mindmap, collapsed, toggleNode),
+    () => buildGraph(mindmap, collapsed, toggleNode, prevNodeIdsRef.current),
     [mindmap, collapsed, toggleNode]
   );
 
   useEffect(() => {
     let cancelled = false;
+    setIsLayouting(true);
 
     (async () => {
       const { nodes: laidNodes, edges: laidEdges } = await layoutGraph(graph.nodes, graph.edges);
       if (cancelled) return;
 
+      // Update previous node IDs for animation tracking
+      prevNodeIdsRef.current = new Set(laidNodes.map(n => n.id));
+
       setNodes(laidNodes);
       setEdges(laidEdges);
+      setIsLayouting(false);
 
+      // Smooth fit view with animation
       if (reactFlowRef.current) {
-        requestAnimationFrame(() => {
-          reactFlowRef.current?.fitView({ padding: 0.25, duration: 420 });
-        });
+        setTimeout(() => {
+          reactFlowRef.current?.fitView({
+            padding: 0.2,
+            duration: 500,
+            maxZoom: 1.2,
+          });
+        }, 100);
       }
     })();
 
@@ -327,9 +386,16 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
     };
   }, [graph]);
 
-  // Render nothing until we have at least the root node
-  if (nodes.length === 0) {
-    return <div className="mindmap-board" />;
+  // Loading state
+  if (nodes.length === 0 && isLayouting) {
+    return (
+      <div className="mindmap-board">
+        <div className="mindmap-loading">
+          <div className="mindmap-loading-spinner" />
+          <span>Building mindmap...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -346,26 +412,28 @@ export function MindmapCanvas({ mindmap }: MindmapCanvasProps) {
         panOnScroll={false}
         zoomOnScroll
         zoomOnPinch
+        minZoom={0.2}
+        maxZoom={2}
         preventScrolling={false}
         proOptions={{ hideAttribution: true }}
         onInit={(instance) => {
           reactFlowRef.current = instance;
-          instance.fitView({ padding: 0.25, duration: 0 });
+          // Initial smooth fit
+          setTimeout(() => {
+            instance.fitView({ padding: 0.2, duration: 600 });
+          }, 200);
         }}
         fitView
-        fitViewOptions={{ padding: 0.25 }}
-        onWheel={(event: React.WheelEvent) => {
-          if (event.ctrlKey) return;
-          event.preventDefault();
-          const instance = reactFlowRef.current;
-          if (!instance) return;
-          const currentZoom = instance.getZoom();
-          const delta = event.deltaY > 0 ? -0.18 : 0.18;
-          const nextZoom = Math.min(2.5, Math.max(0.35, currentZoom + delta));
-          instance.zoomTo(nextZoom, { duration: 180 });
-        }}
+        fitViewOptions={{ padding: 0.2, maxZoom: 1.2 }}
       >
-        <Background gap={28} color="#8a95b8" />
+        <Background gap={24} color="rgba(148, 163, 184, 0.15)" />
+        <Controls
+          showInteractive={false}
+          style={{
+            bottom: 20,
+            left: 20,
+          }}
+        />
       </ReactFlow>
     </div>
   );

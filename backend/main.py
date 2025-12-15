@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 from pipeline import run_pipeline_async
 from models import PipelineResponse
+from utils.supabase_client import create_meeting_record
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -78,7 +80,9 @@ async def health():
 async def summarize_meeting(
     file: UploadFile = File(..., description="VTT transcript file"),
     model: Optional[str] = Form(None, description="Model name (optional)"),
-    segment_len_ms: int = Form(600000, description="Segment length in milliseconds (default: 10 minutes)")
+    segment_len_ms: int = Form(600000, description="Segment length in milliseconds (default: 10 minutes)"),
+    user_id: Optional[str] = Form(None, description="User ID for saving to database"),
+    project_id: Optional[str] = Form(None, description="Project ID for project-based meetings (optional)")
 ):
     """
     Summarize a meeting transcript from a VTT file.
@@ -110,11 +114,30 @@ async def summarize_meeting(
         content = await file.read()
         vtt_content = content.decode("utf-8")
 
+        # Create meeting record if user_id is provided
+        meeting_id = None
+        if user_id:
+            try:
+                # Create with placeholder values, will be updated by pipeline
+                meeting_id = await create_meeting_record(
+                    user_id=user_id,
+                    title="Processing...",
+                    date=datetime.now().isoformat(),
+                    duration_ms=0,
+                    participants=[],
+                    project_id=project_id
+                )
+            except Exception as e:
+                print(f"Error creating meeting record: {e}")
+                # Continue without saving if DB fails
+
         # Run async pipeline
         result = await run_pipeline_async(
             vtt_content=vtt_content,
             model=model,
-            segment_len_ms=segment_len_ms
+            segment_len_ms=segment_len_ms,
+            user_id=user_id,
+            meeting_id=meeting_id
         )
 
         # Check for errors

@@ -1,8 +1,7 @@
 """
 Stage 2: Deep Content Extraction
 Extract action items, achievements, blockers, and Six Thinking Hats analysis.
-This stage focuses on exhaustive extraction with evidence quotes.
-CRITICAL FOCUS: Finding ALL action items comprehensively.
+This stage focuses on exhaustive extraction with evidence from the transcript.
 """
 from __future__ import annotations
 import json
@@ -25,145 +24,129 @@ async def run_extraction_stage_async(
 
     Returns:
         {
-            "action_items": [{task, owner, deadline, status, confidence, chapter_id, evidence}],
-            "achievements": [{achievement, members, confidence, evidence}],
-            "blockers": [{blocker, affected_members, owner, confidence, evidence}],
-            "six_thinking_hats": {participant: {white_hat, red_hat, black_hat, yellow_hat, green_hat, blue_hat}}
+            "action_items": [{task, owner, deadline, priority, evidence}],
+            "achievements": [{achievement, members, evidence}],
+            "blockers": [{blocker, severity, affected_members, evidence}],
+            "six_thinking_hats": {participant: {dominant_hat, explanation}}
         }
     """
     if not utterances:
         return _empty_extraction()
 
-    # Build full transcript with timestamps
+    # Build transcript with speaker labels for evidence extraction
     transcript_lines = []
     for utt in utterances:
         speaker = utt.get("speaker", "Unknown")
         text = utt.get("text", "").strip()
-        start_ms = utt.get("start_ms", 0)
-        timestamp = _fmt_local(start_ms)
         if text:
-            transcript_lines.append(f"[{timestamp}] {speaker}: {text}")
+            transcript_lines.append(f"{speaker}: {text}")
 
     full_transcript = "\n".join(transcript_lines)
 
     # Build chapter reference for context
     chapter_info = "\n".join([
-        f"- {ch.get('chapter_id', 'ch')}: {ch.get('title', 'Chapter')} "
-        f"({_fmt_local(ch.get('start_ms', 0))} - {_fmt_local(ch.get('end_ms', 0))})"
+        f"- {ch.get('chapter_id', 'ch')}: {ch.get('title', 'Chapter')}"
         for ch in chapters
     ])
 
-    # Build prompt
-    system_prompt = """You are an expert meeting analyst specializing in comprehensive extraction.
+    # Optimized system prompt
+    system_prompt = """You are an expert meeting analyst specializing in actionable insights extraction.
 
-Your task is to perform EXHAUSTIVE extraction of:
-1. **ACTION ITEMS** - Your MOST CRITICAL task - find EVERY commitment, task, and follow-up
-2. Achievements - what was completed or accomplished
-3. Blockers - challenges, obstacles, or concerns raised
-4. Six Thinking Hats - identify the DOMINANT thinking style of each participant
+Your primary objectives (in order of importance):
+1. ACTION ITEMS - Find EVERY task, commitment, and follow-up. Miss nothing.
+2. ACHIEVEMENTS - Identify completed work and accomplishments
+3. BLOCKERS - Surface challenges, risks, and obstacles
+4. THINKING STYLES - Analyze each participant's dominant thinking approach
 
-**CRITICAL FOR ACTION ITEMS:**
-- Review EVERY SINGLE utterance for commitments
-- Look for patterns: "I will", "We should", "Need to", "Going to", "Let's", "Have to", "Must", "Should", "Can you", "Could you", "Would you"
-- Include vague commitments (better to over-extract)
-- Include both explicit and implicit action items
-- If someone says they'll "look into it" or "check" something - that's an action item
+Critical rules:
+- Extract evidence as exact quotes with speaker names (no timestamps)
+- Better to over-extract than miss important items
+- Be specific and actionable in descriptions
+- Assign priority levels based on urgency cues"""
 
-**BETTER TO FIND 20 ACTION ITEMS THAN MISS 2 CRITICAL ONES.**"""
-
-    user_prompt = f"""Analyze this meeting transcript and perform comprehensive extraction.
+    user_prompt = f"""Analyze this meeting transcript and extract all actionable content.
 
 TRANSCRIPT:
 {full_transcript}
 
-CHAPTER STRUCTURE (for context):
+CHAPTERS:
 {chapter_info}
 
-Provide a JSON response with the following EXACT structure:
+Return a JSON object with this EXACT structure:
 
 {{
   "action_items": [
     {{
-      "task": "Clear, actionable description of what needs to be done",
-      "owner": "Person Name" or "Unknown" or "Team",
-      "deadline": "YYYY-MM-DD" or "Next week" or "ASAP" or "" (if not specified),
-      "evidence": [
-        {{"timestamp_ms": 120000, "quote": "Exact quote from transcript showing this commitment"}}
-      ]
+      "task": "Clear, specific description of what needs to be done",
+      "owner": "Person Name (or 'Team' if group, 'Unassigned' if unclear)",
+      "deadline": "Specific date, 'This week', 'ASAP', or '' if not specified",
+      "priority": "high, medium, or low",
+      "evidence": {{
+        "speaker": "Who said it",
+        "quote": "Exact words from transcript showing the commitment"
+      }}
     }}
   ],
-
   "achievements": [
     {{
-      "achievement": "Clear description of what was accomplished or completed",
-      "members": ["Alice", "Bob"]
+      "achievement": "Clear description of what was completed",
+      "members": ["Who accomplished it"],
+      "evidence": {{
+        "speaker": "Who mentioned it",
+        "quote": "Exact words confirming the achievement"
+      }}
     }}
   ],
-
   "blockers": [
     {{
-      "blocker": "Clear description of the challenge, obstacle, or concern",
-      "affected_members": ["Alice"] or []
+      "blocker": "Clear description of the challenge or obstacle",
+      "severity": "critical, major, or minor",
+      "affected_members": ["Who is impacted"],
+      "evidence": {{
+        "speaker": "Who raised it",
+        "quote": "Exact words describing the blocker"
+      }}
     }}
   ],
-
   "six_thinking_hats": {{
-    "Alice": {{
-      "dominant_hat": "white",
-      "evidence": "Brief explanation of why this is their dominant thinking style based on their contributions"
-    }},
-    "Bob": {{
-      "dominant_hat": "green",
-      "evidence": "Brief explanation of why this is their dominant thinking style"
+    "PersonName": {{
+      "dominant_hat": "white|red|black|yellow|green|blue",
+      "explanation": "Why this hat based on their contributions"
     }}
   }}
 }}
 
-DETAILED INSTRUCTIONS:
+EXTRACTION RULES:
 
-**ACTION ITEMS (MOST CRITICAL):**
-1. **Review EVERY single line** of the transcript for commitments
-2. Look for these patterns:
-   - Explicit: "I will send the report by Friday"
-   - Implicit: "Let me check with the team" (action = check with team, owner = speaker)
-   - Questions: "Can you review this?" (action = review, owner = person asked)
-   - Assignments: "Bob should handle deployment" (action = handle deployment, owner = Bob)
-   - Group: "We need to fix the bug" (action = fix bug, owner = Team/Unknown)
+ACTION ITEMS (Most Critical - be thorough):
+- Scan EVERY line for commitments using these patterns:
+  * "I will...", "I'll...", "Let me..."
+  * "We should...", "We need to...", "We have to..."
+  * "Can you...?", "Could you...?", "Would you...?"
+  * "Someone should...", "This needs to..."
+- task: Make it actionable (verb + object + context)
+- owner: Extract from "I will" (speaker) or "Can you" (person asked)
+- priority: high (urgent/blocking), medium (important), low (nice-to-have)
+- evidence: Include speaker name and their exact quote
 
-3. For EACH action item:
-   - task: Make it clear and actionable ("Send Q4 report to stakeholders")
-   - owner: WHO will do it (extract from context, use "Unknown" if unclear)
-   - deadline: WHEN it's due (extract if mentioned, "" if not)
-   - evidence: Array of timestamp + exact quote showing this commitment
+ACHIEVEMENTS:
+- Look for past-tense completions: "finished", "completed", "shipped", "fixed", "deployed"
+- Include who was involved in the accomplishment
 
-**ACHIEVEMENTS:**
-- What was COMPLETED, FINISHED, or ACCOMPLISHED (past tense)
-- Examples: "We shipped the feature", "The bug is fixed", "I finished the analysis"
-- Include who was involved (members)
+BLOCKERS:
+- Identify: risks, concerns, obstacles, dependencies, constraints
+- severity: critical (blocking progress), major (significant impact), minor (inconvenience)
+- Flag anything that could delay or prevent success
 
-**BLOCKERS:**
-- Challenges, obstacles, concerns, risks, problems discussed
-- Examples: "We're blocked on API access", "Budget constraint", "Technical debt"
-- Who is affected (affected_members)
+SIX THINKING HATS (assign ONE dominant hat per participant):
+- White: Facts, data, information-focused (analytical)
+- Red: Emotions, feelings, intuition (expressive)
+- Black: Caution, risks, critical thinking (cautious)
+- Yellow: Optimism, benefits, opportunities (positive)
+- Green: Creativity, alternatives, new ideas (innovative)
+- Blue: Process, organization, control (facilitative)
 
-**SIX THINKING HATS:**
-Identify the ONE DOMINANT thinking style for each participant based on their overall contributions:
-- **White Hat**: Focuses on data, facts, and information (analytical and objective)
-- **Red Hat**: Focuses on emotions, feelings, and intuition (expressive and instinctive)
-- **Black Hat**: Focuses on caution, difficulties, and critical thinking (risk-aware)
-- **Yellow Hat**: Focuses on positivity, benefits, and optimism (highlights opportunities)
-- **Green Hat**: Focuses on creativity, alternatives, and new ideas (innovative thinking)
-- **Blue Hat**: Focuses on process, control, and organization (strategic planning)
-
-For each participant, determine which ONE hat best describes their primary contribution style throughout the meeting.
-
-**QUALITY GUIDELINES:**
-- Quote EXACT text from transcript (don't paraphrase)
-- Be comprehensive (especially for action items!)
-- Better to include borderline items than miss them
-- Each evidence quote should clearly support the extracted item
-
-Return ONLY valid JSON with no additional text."""
+Return ONLY valid JSON."""
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -174,24 +157,16 @@ Return ONLY valid JSON with no additional text."""
         import time
         start_time = time.time()
 
-        # Use stage-specific model configuration
-        # Stage 2: Extraction with reasoning (GPT-5 Mini for better Six Thinking Hats analysis)
         stage_model = model if model else STAGE2_MODEL
-        print(f"[STAGE 2] Starting structured extraction...")
+        print(f"[STAGE 2] Starting deep extraction...")
         print(f"[STAGE 2] Model: {stage_model}")
-
-        # GPT-5 Nano and GPT-5 Mini only support default temperature (1.0)
-        # Skip temperature parameter for both models
-        temp = None if ("nano" in stage_model.lower() or "mini" in stage_model.lower()) else 0.3
 
         response_text = await call_ollama_cloud_async(
             model=stage_model,
             messages=messages,
             json_mode=True,
             endpoint=STAGE2_ENDPOINT,
-            api_key=STAGE2_KEY,
-            temperature=temp  # Moderate temperature for consistent extraction with some reasoning (if supported)
-            # No max_tokens limit - let model use as many tokens as needed for reasoning + output
+            api_key=STAGE2_KEY
         )
         result = json.loads(response_text)
 
@@ -199,7 +174,7 @@ Return ONLY valid JSON with no additional text."""
         result = _normalize_extraction(result)
 
         elapsed_time = time.time() - start_time
-        print(f"[STAGE 2] ✓ Structured extraction complete in {elapsed_time:.2f}s")
+        print(f"[STAGE 2] ✓ Deep extraction complete in {elapsed_time:.2f}s")
         print(f"  - Action items: {len(result.get('action_items', []))}")
         print(f"  - Achievements: {len(result.get('achievements', []))}")
         print(f"  - Blockers: {len(result.get('blockers', []))}")
@@ -229,11 +204,19 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
     normalized_actions = []
     for item in action_items:
         if isinstance(item, dict) and item.get("task"):
+            evidence = item.get("evidence", {})
+            if isinstance(evidence, list) and len(evidence) > 0:
+                evidence = evidence[0]  # Take first if array
+            
             normalized_actions.append({
                 "task": str(item.get("task", "")).strip(),
-                "owner": str(item.get("owner", "Unknown")).strip(),
+                "owner": str(item.get("owner", "Unassigned")).strip(),
                 "deadline": str(item.get("deadline", "")).strip(),
-                "evidence": item.get("evidence", [])
+                "priority": str(item.get("priority", "medium")).lower().strip(),
+                "evidence": {
+                    "speaker": evidence.get("speaker", "") if isinstance(evidence, dict) else "",
+                    "quote": evidence.get("quote", "") if isinstance(evidence, dict) else ""
+                }
             })
 
     # Normalize achievements
@@ -244,9 +227,17 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
     normalized_achievements = []
     for item in achievements:
         if isinstance(item, dict) and item.get("achievement"):
+            evidence = item.get("evidence", {})
+            if isinstance(evidence, list) and len(evidence) > 0:
+                evidence = evidence[0]
+            
             normalized_achievements.append({
                 "achievement": str(item.get("achievement", "")).strip(),
-                "members": item.get("members", [])
+                "members": item.get("members", []),
+                "evidence": {
+                    "speaker": evidence.get("speaker", "") if isinstance(evidence, dict) else "",
+                    "quote": evidence.get("quote", "") if isinstance(evidence, dict) else ""
+                }
             })
 
     # Normalize blockers
@@ -257,9 +248,18 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
     normalized_blockers = []
     for item in blockers:
         if isinstance(item, dict) and item.get("blocker"):
+            evidence = item.get("evidence", {})
+            if isinstance(evidence, list) and len(evidence) > 0:
+                evidence = evidence[0]
+            
             normalized_blockers.append({
                 "blocker": str(item.get("blocker", "")).strip(),
-                "affected_members": item.get("affected_members", [])
+                "severity": str(item.get("severity", "medium")).lower().strip(),
+                "affected_members": item.get("affected_members", []),
+                "evidence": {
+                    "speaker": evidence.get("speaker", "") if isinstance(evidence, dict) else "",
+                    "quote": evidence.get("quote", "") if isinstance(evidence, dict) else ""
+                }
             })
 
     # Normalize six thinking hats
@@ -271,8 +271,8 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
     for participant, hat_data in hats.items():
         if isinstance(hat_data, dict):
             normalized_hats[participant] = {
-                "dominant_hat": str(hat_data.get("dominant_hat", "white")).strip(),
-                "evidence": str(hat_data.get("evidence", "")).strip()
+                "dominant_hat": str(hat_data.get("dominant_hat", "white")).lower().strip(),
+                "explanation": str(hat_data.get("explanation", hat_data.get("evidence", ""))).strip()
             }
 
     return {

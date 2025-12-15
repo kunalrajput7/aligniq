@@ -9,9 +9,25 @@ export class APIError extends Error {
   }
 }
 
-export async function uploadAndSummarize(file: File): Promise<PipelineResponse> {
+export interface UploadOptions {
+  userId?: string;
+  projectId?: string;
+}
+
+export async function uploadAndSummarize(
+  file: File,
+  options?: UploadOptions
+): Promise<PipelineResponse> {
   const formData = new FormData();
   formData.append('file', file);
+
+  if (options?.userId) {
+    formData.append('user_id', options.userId);
+  }
+
+  if (options?.projectId) {
+    formData.append('project_id', options.projectId);
+  }
 
   const response = await fetch(`${API_URL}/summarize`, {
     method: 'POST',
@@ -26,7 +42,7 @@ export async function uploadAndSummarize(file: File): Promise<PipelineResponse> 
   return response.json();
 }
 
-export async function checkHealth(): Promise<{ status: string; ollama_api_key_set: boolean }> {
+export async function checkHealth(): Promise<{ status: string; azure_ai_configured: boolean }> {
   const response = await fetch(`${API_URL}/health`);
 
   if (!response.ok) {

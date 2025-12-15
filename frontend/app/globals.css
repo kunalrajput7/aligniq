@@ -53,9 +53,15 @@
   * {
     @apply border-border;
   }
+  
+  /* Global scale down to achieve 90% zoom effect */
+  html {
+    font-size: 14.4px; /* 16px * 0.9 = 14.4px for 90% scale */
+  }
+  
   body {
     @apply bg-background text-foreground;
-    font-weight: 400; /* Regular weight for body text */
+    font-weight: 400;
   }
 
   /* Headings - Bold weight (700) */
