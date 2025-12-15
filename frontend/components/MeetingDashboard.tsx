@@ -38,7 +38,7 @@ const contentVariants = {
     y: 0,
     transition: {
       duration: 0.4,
-      ease: [0.4, 0, 0.2, 1]
+      ease: [0.4, 0, 0.2, 1] as const
     }
   },
   exit: {
@@ -103,7 +103,7 @@ const headerVariants = {
     marginBottom: 0,
     transition: {
       duration: 0.3,
-      ease: [0.4, 0, 0.2, 1]
+      ease: [0.4, 0, 0.2, 1] as const
     }
   },
   visible: {
@@ -112,7 +112,7 @@ const headerVariants = {
     marginBottom: 32,
     transition: {
       duration: 0.4,
-      ease: [0.4, 0, 0.2, 1]
+      ease: [0.4, 0, 0.2, 1] as const
     }
   },
 };
@@ -172,8 +172,8 @@ export function MeetingDashboard({ data }: MeetingDashboardProps) {
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${activeSection === section.id
-                      ? 'bg-primary text-primary-foreground shadow-md'
-                      : 'bg-card hover:bg-accent text-card-foreground hover:text-accent-foreground'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'bg-card hover:bg-accent text-card-foreground hover:text-accent-foreground'
                     }`}
                 >
                   <Icon className="h-5 w-5 flex-shrink-0" />
