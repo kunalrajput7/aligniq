@@ -142,52 +142,84 @@ async def call_ollama_cloud_async(
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
 
-    try:
-        # Calculate and log request size
-        import json as json_lib
-        payload_size = len(json_lib.dumps(payload))
-        print(f"[DEBUG] Calling Azure AI with URL: {url}")
-        print(f"[DEBUG] Deployment: {deployment}")
-        print(f"[DEBUG] Temperature: {temperature if temperature is not None else 'default'}")
-        print(f"[DEBUG] Max tokens: {max_tokens if max_tokens is not None else 'unlimited'}")
-        print(f"[DEBUG] Payload size: {payload_size:,} bytes")
-        print(f"[DEBUG] Timeout: 300 seconds (5 minutes)")
+    # Retry configuration
+    max_retries = 3
+    base_timeout = 600.0  # 10 minutes base timeout for large meetings
+    
+    for attempt in range(max_retries):
+        try:
+            # Calculate and log request size
+            import json as json_lib
+            payload_size = len(json_lib.dumps(payload))
+            current_timeout = base_timeout * (1.5 ** attempt)  # Exponential backoff for timeout
+            
+            if attempt > 0:
+                wait_time = 5 * (2 ** (attempt - 1))  # 5s, 10s, 20s...
+                print(f"[RETRY] Attempt {attempt + 1}/{max_retries} after {wait_time}s wait...")
+                import asyncio
+                await asyncio.sleep(wait_time)
+            
+            print(f"[DEBUG] Calling Azure AI with URL: {url}")
+            print(f"[DEBUG] Deployment: {deployment}")
+            print(f"[DEBUG] Temperature: {temperature if temperature is not None else 'default'}")
+            print(f"[DEBUG] Max tokens: {max_tokens if max_tokens is not None else 'unlimited'}")
+            print(f"[DEBUG] Payload size: {payload_size:,} bytes")
+            print(f"[DEBUG] Timeout: {current_timeout:.0f} seconds ({current_timeout/60:.1f} minutes)")
+            print(f"[DEBUG] Attempt: {attempt + 1}/{max_retries}")
 
-        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minutes timeout for large meetings with reasoning model
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
+            async with httpx.AsyncClient(timeout=current_timeout) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                data = response.json()
 
-            print(f"[DEBUG] Response status: {response.status_code}")
-            print(f"[DEBUG] Response data keys: {data.keys()}")
+                print(f"[DEBUG] Response status: {response.status_code}")
+                print(f"[DEBUG] Response data keys: {data.keys()}")
 
-            choices = data.get("choices") or [{}]
-            message = choices[0].get("message", {})
-            content = message.get("content", "")
+                choices = data.get("choices") or [{}]
+                message = choices[0].get("message", {})
+                content = message.get("content", "")
 
-            if not content:
-                print("[ERROR] Azure AI returned empty content. Full response:")
-                try:
-                    import json as json_lib
-                    print(json_lib.dumps(data, indent=2)[:2000])
-                except Exception:
-                    print(data)
-                raise RuntimeError("Azure AI returned an empty response. Please verify the deployment and prompt.")
+                if not content:
+                    print("[ERROR] Azure AI returned empty content. Full response:")
+                    try:
+                        import json as json_lib
+                        print(json_lib.dumps(data, indent=2)[:2000])
+                    except Exception:
+                        print(data)
+                    raise RuntimeError("Azure AI returned an empty response. Please verify the deployment and prompt.")
 
-            print(f"[DEBUG] Content length: {len(content)}")
-            print(f"[DEBUG] Content preview: {content[:200]}")
+                print(f"[DEBUG] Content length: {len(content)}")
+                print(f"[DEBUG] Content preview: {content[:200]}")
 
-            return content
-    except httpx.HTTPStatusError as e:
-        detail = e.response.text if hasattr(e.response, 'text') else str(e)
-        print(f"[ERROR] Azure AI HTTP Error {e.response.status_code}: {detail}")
-        print(f"[ERROR] Request URL: {url}")
-        raise RuntimeError(f"Azure AI HTTP error: {e.response.status_code} - {detail}")
-    except httpx.RequestError as e:
-        print(f"[ERROR] Azure AI Request Error: {str(e)}")
-        raise RuntimeError(f"Azure AI request error: {str(e)}")
-    except Exception as e:
-        print(f"[ERROR] Azure AI Unexpected Error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise RuntimeError(f"Azure AI unexpected error: {e}")
+                return content
+                
+        except httpx.TimeoutException as e:
+            print(f"[WARN] Azure AI Timeout on attempt {attempt + 1}/{max_retries}: {type(e).__name__}")
+            if attempt == max_retries - 1:
+                print(f"[ERROR] All {max_retries} attempts failed due to timeout")
+                raise RuntimeError(f"Azure AI request timed out after {max_retries} attempts. The model may be overloaded.")
+            # Continue to next retry
+            continue
+            
+        except httpx.HTTPStatusError as e:
+            detail = e.response.text if hasattr(e.response, 'text') else str(e)
+            print(f"[ERROR] Azure AI HTTP Error {e.response.status_code}: {detail}")
+            print(f"[ERROR] Request URL: {url}")
+            # Don't retry on HTTP errors (4xx, 5xx are usually not transient)
+            raise RuntimeError(f"Azure AI HTTP error: {e.response.status_code} - {detail}")
+            
+        except httpx.RequestError as e:
+            print(f"[WARN] Azure AI Request Error on attempt {attempt + 1}/{max_retries}: {str(e)}")
+            if attempt == max_retries - 1:
+                raise RuntimeError(f"Azure AI request error after {max_retries} attempts: {str(e)}")
+            # Continue to next retry for network errors
+            continue
+            
+        except Exception as e:
+            print(f"[ERROR] Azure AI Unexpected Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise RuntimeError(f"Azure AI unexpected error: {e}")
+    
+    # Should not reach here, but just in case
+    raise RuntimeError("Azure AI request failed after all retries")
