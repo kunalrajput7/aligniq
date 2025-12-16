@@ -132,21 +132,24 @@ export function UploadModal({ isOpen, onClose, userId, onUploadComplete }: Uploa
         setError(null);
 
         try {
-            await uploadAndSummarize(file, {
+            const result = await uploadAndSummarize(file, {
                 userId,
                 projectId: selectedProjectId || undefined
             });
 
+            // Always show complete - the backend processes in background
             setStep('complete');
             setUploadMessage(
                 uploadType === 'project'
-                    ? 'Meeting is being processed in this project. Check the Projects section in the sidebar to see the status.'
-                    : 'Meeting is being processed. Check the Meetings section in the sidebar to see the status.'
+                    ? 'Meeting uploaded! It\'s being processed in this project. Check the Projects section to see the status.'
+                    : 'Meeting uploaded! It\'s being processed. Check the Meetings section to see when it\'s ready.'
             );
 
             onUploadComplete?.();
         } catch (err: any) {
-            setError(err.message || 'Upload failed');
+            // Only show error for actual failures, not timeouts
+            console.error('Upload error:', err);
+            setError(err.message || 'Upload failed. Please try again.');
             setStep('choose');
         } finally {
             setIsUploading(false);
@@ -281,8 +284,8 @@ export function UploadModal({ isOpen, onClose, userId, onUploadComplete }: Uploa
                                             key={project.id}
                                             onClick={() => setSelectedProjectId(project.id)}
                                             className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${selectedProjectId === project.id
-                                                    ? 'border-amber-400 bg-amber-50'
-                                                    : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-amber-400 bg-amber-50'
+                                                : 'border-slate-200 hover:border-slate-300'
                                                 }`}
                                         >
                                             <Folder className={`h-5 w-5 ${selectedProjectId === project.id ? 'text-amber-500' : 'text-slate-400'
