@@ -1,6 +1,6 @@
 """
 Stage 3: Narrative Synthesis
-Generate comprehensive executive summary and detailed chapter summaries.
+Generate comprehensive executive summary with structured sections and detailed chapter summaries.
 This stage focuses on creating clear, structured documentation that captures all important meeting details.
 """
 from __future__ import annotations
@@ -15,6 +15,10 @@ async def run_synthesis_stage_async(
     action_items: List[Dict[str, Any]],
     achievements: List[Dict[str, Any]],
     blockers: List[Dict[str, Any]],
+    six_thinking_hats: Dict[str, Any],
+    tone: Dict[str, Any],
+    convergent_points: List[Dict[str, Any]],
+    divergent_points: List[Dict[str, Any]],
     model: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -23,16 +27,23 @@ async def run_synthesis_stage_async(
     Args:
         utterances: List of {speaker, text, start_ms, end_ms}
         chapters: Chapter boundaries from Stage 1
-        action_items: Action items from Stage 2
-        achievements: Achievements from Stage 2
-        blockers: Blockers from Stage 2
+        action_items: Action items from Stage 2 (for context, not included in narrative)
+        achievements: Achievements from Stage 2 (for context)
+        blockers: Blockers from Stage 2 (for context)
+        six_thinking_hats: Six Thinking Hats analysis from Stage 2
+        tone: Meeting tone analysis from Stage 2
+        convergent_points: Points of agreement from Stage 2
+        divergent_points: Points of disagreement from Stage 2
         model: Optional model override
 
     Returns:
         {
-            "narrative_summary": "Comprehensive executive summary in markdown",
+            "narrative_summary": "Executive summary in markdown with 6 sections",
             "chapters": [{chapter_id, title, start_ms, end_ms, topic_keywords, summary}]
         }
+    
+    NOTE: Action items, decisions, achievements, blockers are displayed separately in the UI,
+    so they are NOT included in the narrative summary.
     """
     if not utterances:
         return _empty_synthesis(chapters)
@@ -53,120 +64,144 @@ async def run_synthesis_stage_async(
         for ch in chapters
     ])
 
-    # Build action items summary for context
+    # Build action items summary for context (not included in narrative, but helps LLM understand meeting)
+    # Note: We pass ALL items now, no truncation
     action_summary = ""
     if action_items:
         action_summary = "\n".join([
             f"- {item.get('task', '')} (Owner: {item.get('owner', 'Unassigned')})"
-            for item in action_items[:8]
+            for item in action_items  # No truncation - pass all
         ])
 
-    # System prompt focused on comprehensive summaries
+    # Build tone context
+    tone_context = ""
+    if tone:
+        tone_context = f"Overall: {tone.get('overall', 'collaborative')}, Energy: {tone.get('energy', 'medium')}"
+        if tone.get('description'):
+            tone_context += f"\nDescription: {tone.get('description')}"
+
+    # Build convergent points context - pass ALL, no truncation
+    convergent_context = ""
+    if convergent_points:
+        convergent_context = "\n".join([
+            f"- {cp.get('topic', '')} (Agreed by: {', '.join(cp.get('agreed_by', []))})"
+            for cp in convergent_points  # No truncation
+        ])
+
+    # Build divergent points context - pass ALL, no truncation
+    divergent_context = ""
+    if divergent_points:
+        divergent_items = []
+        for dp in divergent_points:  # No truncation
+            topic = dp.get('topic', '')
+            perspectives = dp.get('perspectives', [])
+            perspective_str = "; ".join([f"{p.get('speaker', '')} → {p.get('view', '')}" for p in perspectives])
+            resolution = dp.get('resolution', 'Unresolved')
+            divergent_items.append(f"- {topic}: {perspective_str} (Resolution: {resolution})")
+        divergent_context = "\n".join(divergent_items)
+
+    # Build hats context
+    hats_context = ""
+    if six_thinking_hats:
+        hats_items = []
+        for participant, data in list(six_thinking_hats.items())[:6]:
+            hat = data.get('dominant_hat', 'white') if isinstance(data, dict) else 'white'
+            hats_items.append(f"- {participant}: {hat.capitalize()} Hat")
+        hats_context = "\n".join(hats_items)
+
+    # System prompt focused on 6-section narrative summaries
+    # Note: Action items, decisions, achievements, blockers are displayed separately in UI
     system_prompt = """You are an expert at creating comprehensive, well-structured meeting documentation.
 
-Your goal: Create a COMPLETE executive summary that captures EVERYTHING important from the meeting.
+Your goal: Create a narrative executive summary with 6 KEY SECTIONS that captures the meeting's essence.
 
-The summary should be detailed enough that someone who missed the meeting understands:
-- What was discussed and why
-- What decisions were made
-- What problems or concerns were raised
-- What the key takeaways are
-- What happens next
+IMPORTANT: Do NOT include Action Items or Decisions sections - these are displayed separately in the application.
+
+The summary should help someone who missed the meeting understand:
+- What was discussed and why (Executive Overview)
+- The most important outcomes (Key Takeaways)
+- Major topics covered (Discussion Topics)
+- The overall tone and energy (Meeting Tone)
+- Where the team aligned (Aligned Thinking)
+- Where opinions differed (Divergent Perspectives)
 
 Writing rules:
-- Use markdown formatting with clear headings
+- Use markdown formatting with **bold** section headers (no numbers)
 - Use bullet points (-) for all lists
 - Be specific: include names, numbers, dates, details
 - Cover ALL major topics discussed
 - Make it comprehensive but scannable"""
 
-    user_prompt = f"""Create a comprehensive executive summary of this meeting.
+    user_prompt = f"""Create a meeting summary with EXACTLY 6 SECTIONS.
 
 TRANSCRIPT:
 {full_transcript}
 
-CHAPTERS COVERED:
-{chapter_info}
+CONTEXT DATA (for your understanding, NOT to be copied into sections):
+- Chapters: {chapter_info}
+- Tone: {tone_context if tone_context else "collaborative, productive"}
+- Agreements: {convergent_context if convergent_context else "See transcript"}
+- Disagreements: {divergent_context if divergent_context else "See transcript"}
 
-ACTION ITEMS IDENTIFIED:
-{action_summary if action_summary else "No specific action items identified"}
-
-Return JSON with this structure:
-
+Return JSON:
 {{
-  "narrative_summary": "comprehensive markdown summary",
-  "chapters": [
-    {{"chapter_id": "ch1", "summary": "detailed chapter summary"}}
-  ]
+  "narrative_summary": "markdown with EXACTLY 6 sections as specified below",
+  "chapters": [{{"chapter_id": "ch1", "summary": "detailed summary"}}]
 }}
 
-=== NARRATIVE SUMMARY FORMAT ===
+=== MANDATORY 6 SECTIONS (YOU MUST INCLUDE ALL 6) ===
 
-Create a COMPREHENSIVE summary following this structure:
+Your narrative_summary MUST contain these EXACT 6 sections in this EXACT order:
 
 **Executive Overview**
-A 3-4 sentence paragraph summarizing the meeting's purpose, main outcomes, and key decisions. This should give readers the essential context immediately.
+[3-4 sentences: meeting purpose, main outcomes, key context]
 
 **Key Takeaways**
-- Most important insight or decision #1
-- Most important insight or decision #2
-- Most important insight or decision #3
-- Most important insight or decision #4
-(List 4-6 bullet points capturing the most critical outcomes)
+- Takeaway 1
+- Takeaway 2
+- Takeaway 3
+- Takeaway 4
+[4-6 most important outcomes and insights]
 
 **Discussion Topics**
+## Topic Name 1
+- What was discussed
+- Key contributors and their points
+- Outcomes or conclusions
 
-## [First Major Topic]
-- Key point discussed with specific details
-- Who contributed and what they said
-- Decisions made or conclusions reached
-- Any concerns or considerations raised
-- Next steps related to this topic
+## Topic Name 2
+- Details...
+[Cover 3-6 main topics with ## subheaders]
 
-## [Second Major Topic]
-- Specific discussion points with details
-- Contributors and their perspectives
-- Outcomes or agreements
-- Open questions or follow-ups needed
+**Meeting Tone**
+[1-2 paragraphs describing the atmosphere: Was it collaborative, tense, productive? High/medium/low energy? How did participants interact? Did the tone shift during the meeting?]
 
-## [Third Major Topic]
-(Continue for each major topic - typically 3-6 topics)
+**Aligned Thinking**
+Points where the team reached consensus:
+- Everyone agreed that...
+- Unanimous support for...
+- Shared conclusion about...
+[3-5 points where the team was in agreement]
 
-**Decisions & Agreements**
-- Decision 1: What was decided, who made it, rationale
-- Decision 2: Details and any conditions
-- Decision 3: Context and follow-up required
-(List ALL significant decisions made during the meeting)
+**Divergent Perspectives**
+Areas where viewpoints differed:
+- **[Topic]**: [Person A] → [their view], [Person B] → [their view]
+  - Resolution: [How resolved or "Still under discussion"]
+[2-4 areas of disagreement with different perspectives shown]
 
-**Risks & Concerns**
-- Concern 1: Description and impact
-- Concern 2: Proposed mitigation if discussed
-- Concern 3: Owner or follow-up needed
-(List ALL risks, concerns, or challenges raised)
+=== CRITICAL RULES ===
 
-**Next Steps**
-- Action 1: What needs to happen next
-- Action 2: Key follow-up items
-- Action 3: Important deadlines or milestones
-(Brief list of immediate next steps - detailed action items are tracked separately)
-
-=== FORMATTING RULES ===
-
-1. Use **bold** for section headers (Executive Overview, Key Takeaways, etc.)
-2. Use ## for topic subsections under Discussion Topics
-3. Use bullet points (-) for ALL lists
-4. Each bullet should be 1-2 sentences with specific details
-5. Include names when relevant (who said what, who decided)
-6. Include numbers/dates when mentioned
-7. Be thorough - cover ALL significant discussions
+1. Include EXACTLY 6 sections - no more, no less
+2. Do NOT include "Decisions Made" or "Action Items" sections - these are displayed separately
+3. Use **bold** for section headers (e.g., **Executive Overview**) - NO numbers
+4. Use ## for sub-topics under Discussion Topics only
+5. Use - for bullet points
+6. For Divergent Perspectives, use → to show each person's view
+7. If no disagreements, write "No significant disagreements were observed"
 
 === CHAPTER SUMMARIES ===
 
-For each chapter, write 2-4 paragraphs covering:
-- Main focus and what was discussed
-- Key contributors and their points
-- Decisions made or conclusions reached
-- How it connects to the overall meeting goals
+For each chapter, write 2-3 paragraphs covering key points discussed.
 
 Return ONLY valid JSON."""
 
@@ -188,12 +223,16 @@ Return ONLY valid JSON."""
             messages=messages,
             json_mode=True,
             endpoint=STAGE3_ENDPOINT,
-            api_key=STAGE3_KEY
+            api_key=STAGE3_KEY,
+            max_tokens=16000  # Ensure full response without truncation
         )
         result = json.loads(response_text)
 
         # Normalize and merge with chapter structure
         result = _normalize_synthesis(result, chapters)
+        
+        # Post-process to fix markdown formatting
+        result["narrative_summary"] = _fix_markdown_headers(result.get("narrative_summary", ""))
 
         elapsed_time = time.time() - start_time
         print(f"[STAGE 3] ✓ Narrative synthesis complete in {elapsed_time:.2f}s")
@@ -211,6 +250,49 @@ Return ONLY valid JSON."""
         import traceback
         traceback.print_exc()
         return _empty_synthesis(chapters)
+
+
+def _fix_markdown_headers(text: str) -> str:
+    """
+    Post-process narrative summary to ensure consistent markdown formatting.
+    Converts various header formats to consistent **bold** for main sections.
+    
+    Expected 6 sections (without numbers):
+    - Executive Overview
+    - Key Takeaways
+    - Discussion Topics
+    - Meeting Tone
+    - Aligned Thinking
+    - Divergent Perspectives
+    """
+    import re
+    
+    if not text:
+        return text
+    
+    # Define the 6 main section patterns to fix (with or without numbers)
+    section_patterns = [
+        # Match numbered versions and convert to non-numbered
+        (r'^##?\s*\*?\*?(?:1\.\s*)?Executive Overview\*?\*?', '**Executive Overview**'),
+        (r'^##?\s*\*?\*?(?:2\.\s*)?Key Takeaways\*?\*?', '**Key Takeaways**'),
+        (r'^##?\s*\*?\*?(?:3\.\s*)?Discussion Topics\*?\*?', '**Discussion Topics**'),
+        (r'^##?\s*\*?\*?(?:4\.\s*)?Meeting Tone\*?\*?', '**Meeting Tone**'),
+        (r'^##?\s*\*?\*?(?:5\.\s*)?Aligned Thinking\*?\*?', '**Aligned Thinking**'),
+        (r'^##?\s*\*?\*?(?:6\.\s*)?Divergent Perspectives\*?\*?', '**Divergent Perspectives**'),
+    ]
+    
+    # Apply all pattern fixes
+    for pattern, replacement in section_patterns:
+        text = re.sub(pattern, replacement, text, flags=re.MULTILINE | re.IGNORECASE)
+    
+    # Clean up any double asterisks that might have been created
+    text = re.sub(r'\*\*\*\*', '**', text)
+    
+    # Remove any stray "Decisions Made" or "Action Items" sections that LLM might add
+    # These should be displayed separately in the UI
+    text = re.sub(r'\n\*\*(?:\d+\.\s*)?(?:Decisions Made|Action Items)\*\*[\s\S]*?(?=\n\*\*|$)', '', text, flags=re.IGNORECASE)
+    
+    return text.strip()
 
 
 def _normalize_synthesis(result: Dict[str, Any], original_chapters: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -279,8 +361,15 @@ def run_synthesis_stage(
     action_items: List[Dict[str, Any]],
     achievements: List[Dict[str, Any]],
     blockers: List[Dict[str, Any]],
+    six_thinking_hats: Dict[str, Any] = None,
+    tone: Dict[str, Any] = None,
+    convergent_points: List[Dict[str, Any]] = None,
+    divergent_points: List[Dict[str, Any]] = None,
     model: Optional[str] = None
 ) -> Dict[str, Any]:
     """Synchronous wrapper for synthesis stage."""
     import asyncio
-    return asyncio.run(run_synthesis_stage_async(utterances, chapters, action_items, achievements, blockers, model))
+    return asyncio.run(run_synthesis_stage_async(
+        utterances, chapters, action_items, achievements, blockers,
+        six_thinking_hats or {}, tone or {}, convergent_points or [], divergent_points or [], model
+    ))

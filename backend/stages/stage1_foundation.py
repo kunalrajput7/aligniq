@@ -69,7 +69,7 @@ Return a JSON object with this EXACT structure:
 {{
   "meeting_details": {{
     "title": "Professional 3-8 word title capturing the meeting's purpose",
-    "date": "YYYY-MM-DD format (today if not mentioned)",
+    "date": "YYYY-MM-DD format (leave empty if date not mentioned in transcript)",
     "duration_ms": {duration_ms},
     "participants": ["List", "of", "unique", "speaker", "names"],
     "unknown_count": 0
@@ -158,6 +158,85 @@ Return ONLY valid JSON."""
         return _empty_foundation()
 
 
+def _repair_timeline(timeline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Repair timeline: sort by timestamp and remove near-duplicates.
+    Duplicates are events within 5 seconds of each other with similar text.
+    """
+    if not timeline:
+        return timeline
+    
+    # Sort by timestamp
+    sorted_timeline = sorted(timeline, key=lambda x: x.get("timestamp_ms", 0))
+    
+    # Remove duplicates (events within 5 seconds of each other)
+    deduped = []
+    for point in sorted_timeline:
+        if not deduped:
+            deduped.append(point)
+            continue
+        
+        last_point = deduped[-1]
+        time_diff = abs(point.get("timestamp_ms", 0) - last_point.get("timestamp_ms", 0))
+        
+        # If more than 5 seconds apart, keep it
+        if time_diff > 5000:
+            deduped.append(point)
+        # If same event text, skip (duplicate)
+        elif point.get("event", "").strip().lower() != last_point.get("event", "").strip().lower():
+            deduped.append(point)
+    
+    return deduped
+
+
+def _repair_chapters(chapters: List[Dict[str, Any]], duration_ms: int) -> List[Dict[str, Any]]:
+    """
+    Repair chapter boundaries:
+    1. Sort by start_ms
+    2. Clamp start/end to [0, duration_ms]
+    3. Fix overlaps by adjusting end times
+    4. Ensure first chapter starts at 0 and last ends at duration_ms
+    5. Ensure start_ms < end_ms for each chapter
+    """
+    if not chapters:
+        return chapters
+    
+    # Sort by start_ms
+    sorted_chapters = sorted(chapters, key=lambda x: x.get("start_ms", 0))
+    
+    repaired = []
+    for i, chapter in enumerate(sorted_chapters):
+        start_ms = max(0, min(chapter.get("start_ms", 0), duration_ms))
+        end_ms = max(0, min(chapter.get("end_ms", duration_ms), duration_ms))
+        
+        # Ensure start < end (minimum 1 second chapter)
+        if end_ms <= start_ms:
+            end_ms = min(start_ms + 60000, duration_ms)  # At least 1 minute
+        
+        # Fix overlap with previous chapter
+        if repaired and start_ms < repaired[-1].get("end_ms", 0):
+            # Adjust previous chapter's end to match this chapter's start
+            repaired[-1]["end_ms"] = start_ms
+        
+        repaired.append({
+            "chapter_id": chapter.get("chapter_id", f"ch{i+1}"),
+            "title": chapter.get("title", f"Chapter {i+1}"),
+            "start_ms": start_ms,
+            "end_ms": end_ms,
+            "topic_keywords": chapter.get("topic_keywords", [])
+        })
+    
+    # Ensure first chapter starts at 0
+    if repaired and repaired[0]["start_ms"] > 0:
+        repaired[0]["start_ms"] = 0
+    
+    # Ensure last chapter ends at duration_ms
+    if repaired and repaired[-1]["end_ms"] < duration_ms:
+        repaired[-1]["end_ms"] = duration_ms
+    
+    return repaired
+
+
 def _normalize_foundation(result: Dict[str, Any], utterances: List[Dict[str, Any]], duration_ms: int) -> Dict[str, Any]:
     """Normalize and validate foundation stage output."""
 
@@ -196,6 +275,9 @@ def _normalize_foundation(result: Dict[str, Any], utterances: List[Dict[str, Any
                 "event": str(point.get("event", point.get("text", ""))).strip(),
                 "speakers": point.get("speakers", [])
             })
+    
+    # Repair timeline: sort and dedupe
+    normalized_timeline = _repair_timeline(normalized_timeline)
 
     # Normalize chapters
     chapters = result.get("chapters", [])
@@ -222,6 +304,9 @@ def _normalize_foundation(result: Dict[str, Any], utterances: List[Dict[str, Any
             "end_ms": duration_ms,
             "topic_keywords": []
         })
+    else:
+        # Repair chapters: sort, clamp, fix overlaps/gaps
+        normalized_chapters = _repair_chapters(normalized_chapters, duration_ms)
 
     return {
         "meeting_details": meeting_details,

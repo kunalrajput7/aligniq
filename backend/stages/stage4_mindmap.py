@@ -144,7 +144,7 @@ async def build_mindmap_async(
         start_ms = chapter.get("start_ms", 0)
         end_ms = chapter.get("end_ms", 0)
 
-        # Add chapter node (no truncation - show full title)
+        # Add chapter node with full title
         chapter_node = {
             "id": chapter_id,
             "label": chapter_title,  # Full title, no truncation
@@ -174,7 +174,7 @@ async def build_mindmap_async(
                 "label": point_text,  # Full text, no truncation
                 "type": "claim",  # Using 'claim' type for key points
                 "parent_id": chapter_id,
-                "description": point_text,
+                "description": point_text,  # Full text in description
                 "confidence": 0.85
             }
             nodes.append(point_node)

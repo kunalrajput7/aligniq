@@ -612,11 +612,15 @@ async def run_pipeline_async(
         achievements = _normalize_achievements(stage2_result.get("achievements", []))
         blockers = _normalize_blockers(stage2_result.get("blockers", []))
         six_thinking_hats = stage2_result.get("six_thinking_hats", {}) or {}
+        tone = stage2_result.get("tone", {}) or {}
+        convergent_points = stage2_result.get("convergent_points", []) or []
+        divergent_points = stage2_result.get("divergent_points", []) or []
 
         # Stage 3: Synthesis - Generate narrative summaries
         print("\n[PIPELINE] Step 4: Stage 3 - Synthesis (narrative summary, chapter summaries)")
         stage3_result = await run_synthesis_stage_async(
-            utterances, chapters_foundation, action_items, achievements, blockers, model
+            utterances, chapters_foundation, action_items, achievements, blockers,
+            six_thinking_hats, tone, convergent_points, divergent_points, model
         )
         print("[PIPELINE] Stage 3 complete!")
 

@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, X, FileText, ExternalLink } from 'lucide-react';
+import { CheckCircle2, X, FileText, XCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
-interface Notification {
+interface CompletedMeeting {
     id: string;
     meetingId: string;
     title: string;
@@ -15,7 +15,8 @@ interface Notification {
 }
 
 export function ProcessingNotifications() {
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [completedMeeting, setCompletedMeeting] = useState<CompletedMeeting | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const supabase = createClient();
 
     useEffect(() => {
@@ -39,11 +40,11 @@ export function ProcessingNotifications() {
                         const newMeeting = payload.new as any;
                         const oldMeeting = payload.old as any;
 
-                        // Only show notification when status changes to 'completed' or 'failed'
+                        // Only show modal when status changes from 'processing' to 'completed' or 'failed'
                         if (oldMeeting.status === 'processing' &&
                             (newMeeting.status === 'completed' || newMeeting.status === 'failed')) {
 
-                            const notification: Notification = {
+                            const meeting: CompletedMeeting = {
                                 id: `${newMeeting.id}-${Date.now()}`,
                                 meetingId: newMeeting.id,
                                 title: newMeeting.title || 'Untitled Meeting',
@@ -51,12 +52,8 @@ export function ProcessingNotifications() {
                                 timestamp: new Date()
                             };
 
-                            setNotifications(prev => [notification, ...prev].slice(0, 5)); // Keep max 5
-
-                            // Auto-dismiss after 10 seconds
-                            setTimeout(() => {
-                                setNotifications(prev => prev.filter(n => n.id !== notification.id));
-                            }, 10000);
+                            setCompletedMeeting(meeting);
+                            setIsModalOpen(true);
                         }
                     }
                 )
@@ -70,86 +67,139 @@ export function ProcessingNotifications() {
         setupSubscription();
     }, [supabase]);
 
-    const dismissNotification = (id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id));
+    const closeModal = () => {
+        setIsModalOpen(false);
+        // Clear the meeting after animation completes
+        setTimeout(() => setCompletedMeeting(null), 300);
     };
 
     return (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 max-w-sm">
-            <AnimatePresence mode="popLayout">
-                {notifications.map((notification) => (
+        <AnimatePresence>
+            {isModalOpen && completedMeeting && (
+                <>
+                    {/* Backdrop */}
                     <motion.div
-                        key={notification.id}
-                        initial={{ opacity: 0, y: 50, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: 100, scale: 0.9 }}
-                        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                        className={`relative p-4 rounded-xl shadow-lg border backdrop-blur-md ${notification.type === 'completed'
-                                ? 'bg-green-50/95 border-green-200'
-                                : 'bg-red-50/95 border-red-200'
-                            }`}
-                    >
-                        {/* Close button */}
-                        <button
-                            onClick={() => dismissNotification(notification.id)}
-                            className="absolute top-2 right-2 p-1 rounded-full hover:bg-black/5 transition-colors"
-                        >
-                            <X className="h-4 w-4 text-slate-400" />
-                        </button>
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={closeModal}
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+                    />
 
-                        <div className="flex items-start gap-3 pr-6">
-                            {/* Icon */}
-                            <div className={`p-2 rounded-full ${notification.type === 'completed'
-                                    ? 'bg-green-100 text-green-600'
-                                    : 'bg-red-100 text-red-600'
-                                }`}>
-                                {notification.type === 'completed' ? (
-                                    <CheckCircle2 className="h-5 w-5" />
-                                ) : (
-                                    <X className="h-5 w-5" />
-                                )}
-                            </div>
+                    {/* Modal */}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    >
+                        <div className={`relative w-full max-w-md rounded-2xl shadow-2xl border-2 overflow-hidden ${completedMeeting.type === 'completed'
+                                ? 'bg-gradient-to-br from-green-50 to-emerald-100 border-green-300'
+                                : 'bg-gradient-to-br from-red-50 to-rose-100 border-red-300'
+                            }`}>
+                            {/* Close button */}
+                            <button
+                                onClick={closeModal}
+                                className="absolute top-4 right-4 p-2 rounded-full hover:bg-black/10 transition-colors z-10"
+                            >
+                                <X className="h-5 w-5 text-slate-600" />
+                            </button>
 
                             {/* Content */}
-                            <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-semibold ${notification.type === 'completed'
-                                        ? 'text-green-900'
-                                        : 'text-red-900'
-                                    }`}>
-                                    {notification.type === 'completed'
-                                        ? 'Meeting Ready!'
-                                        : 'Processing Failed'}
-                                </p>
-                                <p className="text-sm text-slate-600 truncate mt-0.5">
-                                    {notification.title}
-                                </p>
+                            <div className="p-8 text-center">
+                                {/* Icon with animation */}
+                                <motion.div
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ type: 'spring', delay: 0.1, damping: 15 }}
+                                    className={`mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6 ${completedMeeting.type === 'completed'
+                                            ? 'bg-green-500 shadow-lg shadow-green-200'
+                                            : 'bg-red-500 shadow-lg shadow-red-200'
+                                        }`}
+                                >
+                                    {completedMeeting.type === 'completed' ? (
+                                        <CheckCircle2 className="h-10 w-10 text-white" />
+                                    ) : (
+                                        <XCircle className="h-10 w-10 text-white" />
+                                    )}
+                                </motion.div>
 
-                                {notification.type === 'completed' && (
-                                    <Link
-                                        href={`/dashboard/meetings/${notification.meetingId}`}
-                                        className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-800 mt-2"
+                                {/* Sparkles for success */}
+                                {completedMeeting.type === 'completed' && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: 0.2 }}
+                                        className="absolute top-12 left-1/2 -translate-x-1/2"
                                     >
-                                        <FileText className="h-3 w-3" />
-                                        View Summary
-                                        <ExternalLink className="h-3 w-3" />
-                                    </Link>
+                                        <Sparkles className="h-6 w-6 text-yellow-500 animate-pulse" />
+                                    </motion.div>
                                 )}
+
+                                {/* Title */}
+                                <motion.h2
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.15 }}
+                                    className={`text-2xl font-bold mb-2 ${completedMeeting.type === 'completed'
+                                            ? 'text-green-800'
+                                            : 'text-red-800'
+                                        }`}
+                                >
+                                    {completedMeeting.type === 'completed'
+                                        ? '🎉 Meeting Processed!'
+                                        : 'Processing Failed'}
+                                </motion.h2>
+
+                                {/* Meeting title */}
+                                <motion.p
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                    className="text-slate-600 mb-6"
+                                >
+                                    <span className="font-medium">{completedMeeting.title}</span>
+                                    <br />
+                                    <span className="text-sm">
+                                        {completedMeeting.type === 'completed'
+                                            ? 'Your meeting summary is ready to view!'
+                                            : 'Something went wrong. Please try again.'}
+                                    </span>
+                                </motion.p>
+
+                                {/* Buttons */}
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.25 }}
+                                    className="flex gap-3 justify-center"
+                                >
+                                    {completedMeeting.type === 'completed' && (
+                                        <Link
+                                            href={`/dashboard/meetings/${completedMeeting.meetingId}`}
+                                            onClick={closeModal}
+                                            className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl shadow-lg shadow-green-200 transition-all hover:scale-105"
+                                        >
+                                            <FileText className="h-5 w-5" />
+                                            View Summary
+                                        </Link>
+                                    )}
+                                    <button
+                                        onClick={closeModal}
+                                        className={`px-6 py-3 font-semibold rounded-xl transition-all hover:scale-105 ${completedMeeting.type === 'completed'
+                                                ? 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                                                : 'bg-red-600 hover:bg-red-700 text-white'
+                                            }`}
+                                    >
+                                        {completedMeeting.type === 'completed' ? 'Dismiss' : 'Close'}
+                                    </button>
+                                </motion.div>
                             </div>
                         </div>
-
-                        {/* Progress bar for auto-dismiss */}
-                        <motion.div
-                            className={`absolute bottom-0 left-0 h-1 rounded-b-xl ${notification.type === 'completed'
-                                    ? 'bg-green-400'
-                                    : 'bg-red-400'
-                                }`}
-                            initial={{ width: '100%' }}
-                            animate={{ width: '0%' }}
-                            transition={{ duration: 10, ease: 'linear' }}
-                        />
                     </motion.div>
-                ))}
-            </AnimatePresence>
-        </div>
+                </>
+            )}
+        </AnimatePresence>
     );
 }

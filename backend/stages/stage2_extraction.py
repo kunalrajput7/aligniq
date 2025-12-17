@@ -64,7 +64,7 @@ Critical rules:
 - Be specific and actionable in descriptions
 - Assign priority levels based on urgency cues"""
 
-    user_prompt = f"""Analyze this meeting transcript and extract all actionable content.
+    user_prompt = f"""Analyze this meeting transcript and extract all actionable content and group dynamics.
 
 TRANSCRIPT:
 {full_transcript}
@@ -75,6 +75,31 @@ CHAPTERS:
 Return a JSON object with this EXACT structure:
 
 {{
+  "tone": {{
+    "overall": "collaborative | tense | productive | formal | casual | energetic | subdued",
+    "energy": "high | medium | low",
+    "description": "1-2 sentence description of meeting atmosphere and how it evolved"
+  }},
+  "convergent_points": [
+    {{
+      "topic": "What everyone agreed on",
+      "agreed_by": ["Speaker1", "Speaker2"],
+      "evidence": {{
+        "speaker": "Who voiced the agreement",
+        "quote": "Exact quote showing consensus"
+      }}
+    }}
+  ],
+  "divergent_points": [
+    {{
+      "topic": "What topic had different opinions",
+      "perspectives": [
+        {{"speaker": "Person1", "view": "Their position or preference"}},
+        {{"speaker": "Person2", "view": "Their contrasting position"}}
+      ],
+      "resolution": "How it was resolved, or 'Unresolved' if still open"
+    }}
+  ],
   "action_items": [
     {{
       "task": "Clear, specific description of what needs to be done",
@@ -117,6 +142,21 @@ Return a JSON object with this EXACT structure:
 }}
 
 EXTRACTION RULES:
+
+TONE ANALYSIS:
+- overall: Assess the dominant emotional quality of interactions
+- energy: How animated/engaged were participants?
+- description: Note if tone shifted during the meeting (e.g., "Started formal, became collaborative after ice-breaker")
+
+CONVERGENT POINTS (Where everyone aligned):
+- Look for explicit agreement: "I agree", "That makes sense", "We're all on the same page"
+- Look for unanimous decisions or shared conclusions
+- Include 2-5 key points where the team reached consensus
+
+DIVERGENT POINTS (Where opinions differed):
+- Look for disagreement: "I think differently", "On the other hand", "I'm not sure about that"
+- Look for debates, alternative proposals, or competing priorities
+- Include resolution if one was reached during the meeting
 
 ACTION ITEMS (Most Critical - be thorough):
 - Scan EVERY line for commitments using these patterns:
@@ -208,11 +248,21 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(evidence, list) and len(evidence) > 0:
                 evidence = evidence[0]  # Take first if array
             
+            # Normalize priority to valid values: high, medium, low
+            priority_raw = str(item.get("priority", "medium")).lower().strip()
+            priority_map = {
+                "high": "high", "medium": "medium", "low": "low",
+                "urgent": "high", "critical": "high", "important": "high",
+                "normal": "medium", "moderate": "medium",
+                "minor": "low", "trivial": "low", "nice-to-have": "low"
+            }
+            priority = priority_map.get(priority_raw, "medium")
+            
             normalized_actions.append({
                 "task": str(item.get("task", "")).strip(),
                 "owner": str(item.get("owner", "Unassigned")).strip(),
                 "deadline": str(item.get("deadline", "")).strip(),
-                "priority": str(item.get("priority", "medium")).lower().strip(),
+                "priority": priority,
                 "evidence": {
                     "speaker": evidence.get("speaker", "") if isinstance(evidence, dict) else "",
                     "quote": evidence.get("quote", "") if isinstance(evidence, dict) else ""
@@ -252,9 +302,19 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(evidence, list) and len(evidence) > 0:
                 evidence = evidence[0]
             
+            # Normalize severity to valid values: critical, major, minor
+            severity_raw = str(item.get("severity", "major")).lower().strip()
+            severity_map = {
+                "critical": "critical", "major": "major", "minor": "minor",
+                "high": "critical", "severe": "critical", "blocking": "critical",
+                "medium": "major", "moderate": "major", "significant": "major",
+                "low": "minor", "trivial": "minor", "inconvenience": "minor"
+            }
+            severity = severity_map.get(severity_raw, "major")
+            
             normalized_blockers.append({
                 "blocker": str(item.get("blocker", "")).strip(),
-                "severity": str(item.get("severity", "medium")).lower().strip(),
+                "severity": severity,
                 "affected_members": item.get("affected_members", []),
                 "evidence": {
                     "speaker": evidence.get("speaker", "") if isinstance(evidence, dict) else "",
@@ -275,11 +335,72 @@ def _normalize_extraction(result: Dict[str, Any]) -> Dict[str, Any]:
                 "explanation": str(hat_data.get("explanation", hat_data.get("evidence", ""))).strip()
             }
 
+    # Normalize tone
+    tone = result.get("tone", {})
+    if not isinstance(tone, dict):
+        tone = {}
+    
+    normalized_tone = {
+        "overall": str(tone.get("overall", "collaborative")).lower().strip(),
+        "energy": str(tone.get("energy", "medium")).lower().strip(),
+        "description": str(tone.get("description", "")).strip()
+    }
+
+    # Normalize convergent points
+    convergent = result.get("convergent_points", [])
+    if not isinstance(convergent, list):
+        convergent = []
+    
+    normalized_convergent = []
+    for item in convergent:
+        if isinstance(item, dict) and item.get("topic"):
+            evidence = item.get("evidence", {})
+            if isinstance(evidence, list) and len(evidence) > 0:
+                evidence = evidence[0]
+            
+            normalized_convergent.append({
+                "topic": str(item.get("topic", "")).strip(),
+                "agreed_by": item.get("agreed_by", []),
+                "evidence": {
+                    "speaker": evidence.get("speaker", "") if isinstance(evidence, dict) else "",
+                    "quote": evidence.get("quote", "") if isinstance(evidence, dict) else ""
+                }
+            })
+
+    # Normalize divergent points
+    divergent = result.get("divergent_points", [])
+    if not isinstance(divergent, list):
+        divergent = []
+    
+    normalized_divergent = []
+    for item in divergent:
+        if isinstance(item, dict) and item.get("topic"):
+            perspectives = item.get("perspectives", [])
+            if not isinstance(perspectives, list):
+                perspectives = []
+            
+            normalized_perspectives = []
+            for p in perspectives:
+                if isinstance(p, dict):
+                    normalized_perspectives.append({
+                        "speaker": str(p.get("speaker", "")).strip(),
+                        "view": str(p.get("view", "")).strip()
+                    })
+            
+            normalized_divergent.append({
+                "topic": str(item.get("topic", "")).strip(),
+                "perspectives": normalized_perspectives,
+                "resolution": str(item.get("resolution", "Unresolved")).strip()
+            })
+
     return {
         "action_items": normalized_actions,
         "achievements": normalized_achievements,
         "blockers": normalized_blockers,
-        "six_thinking_hats": normalized_hats
+        "six_thinking_hats": normalized_hats,
+        "tone": normalized_tone,
+        "convergent_points": normalized_convergent,
+        "divergent_points": normalized_divergent
     }
 
 
@@ -289,7 +410,10 @@ def _empty_extraction() -> Dict[str, Any]:
         "action_items": [],
         "achievements": [],
         "blockers": [],
-        "six_thinking_hats": {}
+        "six_thinking_hats": {},
+        "tone": {"overall": "collaborative", "energy": "medium", "description": ""},
+        "convergent_points": [],
+        "divergent_points": []
     }
 
 
