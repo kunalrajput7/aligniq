@@ -8,6 +8,9 @@ const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
 export const metadata: Metadata = {
   title: 'AlignIQ - Meeting Summarizer',
   description: 'AI-powered meeting intelligence',
+  icons: {
+    icon: '/site_logo.png',
+  },
 }
 
 export default function RootLayout({
