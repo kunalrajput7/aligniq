@@ -1,8 +1,8 @@
 # Summar AI - Complete Project Documentation
 
-> **Last Updated:** December 16, 2024  
-> **Version:** 2.0.0  
-> **Tech Stack:** Next.js 14 + FastAPI + Supabase + Azure AI
+> **Last Updated:** December 17, 2024  
+> **Version:** 2.1.0  
+> **Tech Stack:** Next.js 14 + FastAPI + Supabase + Azure AI (GPT-5-Mini)
 
 ---
 
@@ -28,7 +28,7 @@
 **Summar AI** is a meeting transcript analyzer that processes VTT files and generates comprehensive meeting intelligence:
 
 ### Core Features
-- **8-Section Executive Summaries** with structured markdown output
+- **6-Section Executive Summaries** with structured markdown output
 - **Action Items** with owners, deadlines, and priority levels
 - **Achievements & Blockers** with severity ratings
 - **Six Thinking Hats Analysis** per speaker
@@ -39,17 +39,17 @@
 - **Real-time Notifications** when processing completes
 - **PDF Export** with complete meeting data
 
-### The 8-Section Summary Format
+### The 6-Section Summary Format
 ```markdown
 **1. Executive Overview**    - 3-4 sentence purpose & outcomes
 **2. Key Takeaways**         - 4-6 most important points
-**3. Discussion Topics**     - Major topics with sub-sections
+**3. Discussion Topics**     - Major topics with sub-sections per chapter
 **4. Meeting Tone**          - Atmosphere & energy analysis
 **5. Aligned Thinking**      - Points of consensus
 **6. Divergent Perspectives** - Areas of disagreement
-**7. Decisions Made**        - All decisions with owners
-**8. Action Items**          - Tasks with owner/deadline/priority
 ```
+
+> **Note:** Action Items, Achievements, and Blockers are displayed in separate UI panels, not in the narrative summary.
 
 ---
 
@@ -87,10 +87,10 @@
 │      AZURE AI           │   │         SUPABASE                   │
 │  (LLM Processing)       │   │  PostgreSQL + Auth + Realtime      │
 ├─────────────────────────┤   ├───────────────────────────────────┤
-│  GPT-5 Nano (Stage 1)   │   │  profiles       - User accounts    │
-│  GPT-5 Mini (Stage 2)   │   │  projects       - Meeting groups   │
-│  GPT-5 Mini (Stage 3)   │   │  meetings       - Meeting metadata │
-│  max_tokens: 16000      │   │  meeting_summaries - Analysis JSON │
+│  GPT-5 Mini (All Stages)│   │  profiles       - User accounts    │
+│  Token logging enabled  │   │  projects       - Meeting groups   │
+│  Reasoning + Output     │   │  meetings       - Meeting metadata │
+│  breakdown tracked      │   │  meeting_summaries - Analysis JSON │
 └─────────────────────────┘   └───────────────────────────────────┘
 ```
 
@@ -143,8 +143,8 @@ backend/
 ├── startup.sh              # Azure startup script
 ├── supabase_schema.sql     # Database schema
 ├── stages/
-│   ├── common.py           # Shared LLM call logic + retry (3 attempts)
-│   ├── stage1_foundation.py    # Metadata, timeline, chapters
+│   ├── common.py           # Shared LLM call logic + retry + token logging
+│   ├── stage1_foundation.py    # Metadata, timeline, chapters + COMPREHENSIVE SUMMARIES
 │   ├── stage2_extraction.py    # Action items, achievements, blockers, hats, tone, convergent/divergent
 │   ├── stage3_synthesis.py     # 8-section narrative summary with post-processing
 │   └── stage4_mindmap.py       # Mindmap visualization
@@ -184,14 +184,17 @@ VTT File → Parse → Stage 1 → Stage 2 → Stage 3 → Stage 4 → Save to D
 - `call_ollama_cloud_async()` - Unified Azure AI caller
 - **Retry logic**: 3 attempts with exponential backoff (5s, 10s, 20s)
 - **Timeout**: 600 seconds (10 minutes) base timeout, increases per retry
-- **max_tokens**: Stage 3 uses 16000 to prevent truncation
+- **Token logging**: Tracks prompt, completion, reasoning, and output tokens
 - Handles JSON mode for structured responses
+- Uses correct deployment name from stage-specific model settings
 
 #### `stages/stage1_foundation.py`
-- **Model**: GPT-5 Nano (fast, ~30s)
-- **Input**: Raw utterances
+- **Model**: GPT-5 Mini (reasoning, ~60-90s)
+- **Input**: Raw utterances (full transcript)
 - **Extracts**: Meeting title, date, duration, participants
-- **Generates**: Timeline (key moments), Chapter boundaries with topic keywords
+- **Generates**: Timeline (key moments), Chapters with:
+  - Title, timestamps, topic keywords
+  - **COMPREHENSIVE SUMMARIES** (no length limit, covers all important content)
 
 #### `stages/stage2_extraction.py` (404 lines)
 - **Model**: GPT-5 Mini (reasoning, ~90s)
@@ -226,22 +229,23 @@ VTT File → Parse → Stage 1 → Stage 2 → Stage 3 → Stage 4 → Save to D
 }
 ```
 
-#### `stages/stage3_synthesis.py` (385 lines)
-- **Model**: GPT-5 Mini (creative, ~120s)
-- **Input**: Utterances, Chapters, Action Items, Achievements, Blockers, Hats, Tone, Convergent, Divergent
-- **max_tokens**: 16000 (prevents truncation)
-- **Generates**: 8-section narrative summary in markdown
-- **Post-processing**: `_fix_markdown_headers()` normalizes all section headers to consistent `**bold**` format
+#### `stages/stage3_synthesis.py` (OPTIMIZED)
+- **Model**: GPT-5 Mini (~30-45s)
+- **Input**: STRUCTURED DATA ONLY (no transcript!)
+  - Chapters with summaries (from Stage 1)
+  - Tone, convergent_points, divergent_points (from Stage 2)
+  - Action items, achievements, blockers (for context)
+- **Token efficiency**: ~2K input tokens (vs ~25K if transcript was included)
+- **Generates**: 6-section narrative summary
+- **Post-processing**: `_sanitize_narrative_summary()` cleans LLM output
 
-**8 Mandatory Sections:**
+**6 Mandatory Sections:**
 1. Executive Overview
 2. Key Takeaways
-3. Discussion Topics (with ## sub-topics)
+3. Discussion Topics (with ## sub-topics per chapter)
 4. Meeting Tone
 5. Aligned Thinking
 6. Divergent Perspectives
-7. Decisions Made
-8. Action Items
 
 #### `stages/stage4_mindmap.py`
 - **No LLM** - Pure Python logic
@@ -477,21 +481,21 @@ All tables have RLS enabled. Users can only:
 | Benefit | Explanation |
 |---------|-------------|
 | **Accuracy** | Stage 3 uses extracted facts from Stage 2, not hallucinating |
-| **Consistency** | Action items in summary match extracted items exactly |
-| **Efficiency** | Each stage uses the right model (fast vs reasoning) |
+| **Efficiency** | Stage 3 uses only ~2K input tokens (no transcript) |
+| **Detailed Chapters** | Stage 1 writes comprehensive summaries with full transcript access |
 | **Reliability** | Retry logic handles transient failures |
 | **Quality** | Smaller, focused prompts = better LLM output |
-| **No Truncation** | 16000 max_tokens ensures complete 8-section output |
+| **Token Logging** | Tracks prompt, completion, reasoning, and output tokens |
 
 ### Timing Expectations
 
-| Stage | Model | Approx Time |
-|-------|-------|-------------|
-| Stage 1 | GPT-5 Nano | ~30s |
-| Stage 2 | GPT-5 Mini | ~90s |
-| Stage 3 | GPT-5 Mini | ~120s |
-| Stage 4 | Python | <1s |
-| **Total** | - | **~4 minutes** |
+| Stage | Model | Approx Time | Input Tokens |
+|-------|-------|-------------|--------------|
+| Stage 1 | GPT-5 Mini | ~60-90s | ~25K (transcript) |
+| Stage 2 | GPT-5 Mini | ~90-120s | ~25K (transcript) |
+| Stage 3 | GPT-5 Mini | ~30-45s | ~2K (structured only) |
+| Stage 4 | Python | <1s | - |
+| **Total** | - | **~3-4 minutes** | **~52K** |
 
 ---
 
@@ -671,15 +675,24 @@ npm run dev
 
 ---
 
-## Recent Changes (v2.0.0)
+## Recent Changes (v2.1.0)
 
-1. **Stage 2 Enhanced** - Added tone, convergent_points, divergent_points extraction
-2. **Stage 3 Rewritten** - 8-section narrative format with strict enforcement
-3. **Post-processing Added** - `_fix_markdown_headers()` normalizes formatting
-4. **max_tokens=16000** - Prevents truncation of Section 8
-5. **Frontend Timeout Handling** - 30s timeout with graceful fallback
-6. **Real-time Notifications** - Toast when meetings complete/fail
-7. **Dashboard Layout** - Global notification component
+### Pipeline Optimization
+1. **Stage 1 Chapter Summaries** - Stage 1 now generates comprehensive chapter summaries (no length limit) with full transcript access
+2. **Stage 3 Optimized** - No longer uses transcript, works from structured data only (~2K tokens vs ~25K)
+3. **GPT-5-Mini for All Stages** - Unified model across stages for consistent performance
+4. **Model Deployment Fix** - Fixed bug where stage-specific model settings were being ignored
+5. **Token Logging** - Each API call now logs prompt, completion, reasoning, and output tokens
+
+### Quality Fixes
+6. **Sanitization Fix** - Fixed `_sanitize_narrative_summary()` that was truncating narratives mid-sentence
+7. **6-Section Enforcement** - Added strong enforcement for all 6 mandatory sections (Meeting Tone, Aligned Thinking, Divergent Perspectives were being skipped)
+8. **"DO NOT SKIP" Markers** - Prompt explicitly warns LLM not to skip the last 3 sections
+
+### Previous (v2.0.0)
+- Stage 2 Enhanced with tone, convergent_points, divergent_points
+- Real-time notifications via Supabase
+- Frontend 30s timeout with graceful handling
 
 ---
 

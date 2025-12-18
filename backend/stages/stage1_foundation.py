@@ -87,7 +87,8 @@ Return a JSON object with this EXACT structure:
       "title": "Clear 3-6 word chapter title",
       "start_ms": 0,
       "end_ms": 180000,
-      "topic_keywords": ["keyword1", "keyword2", "keyword3"]
+      "topic_keywords": ["keyword1", "keyword2", "keyword3"],
+      "summary": "Comprehensive summary of everything discussed in this chapter..."
     }}
   ]
 }}
@@ -110,6 +111,14 @@ Chapters (3-7 thematic sections):
 - Chapters must not overlap and should cover the full meeting
 - title: Create descriptive titles (e.g., "Budget Review", "Technical Architecture")
 - topic_keywords: 3-5 words that characterize the chapter content
+- summary: Write a COMPREHENSIVE summary for each chapter that includes:
+  * What was the main topic or focus?
+  * What specific points, ideas, or proposals were discussed?
+  * Who contributed and what were their key inputs?
+  * What decisions, agreements, or conclusions were reached?
+  * What questions or issues remain open?
+  * Any important numbers, dates, or specifics mentioned
+  * DO NOT limit length - cover ALL important content from this section
 
 Return ONLY valid JSON."""
 
@@ -132,6 +141,7 @@ Return ONLY valid JSON."""
             json_mode=True,
             endpoint=STAGE1_ENDPOINT,
             api_key=STAGE1_KEY
+            # No max_tokens - let GPT-5 use what it needs for reasoning + output
         )
         result = json.loads(response_text)
 
@@ -223,7 +233,8 @@ def _repair_chapters(chapters: List[Dict[str, Any]], duration_ms: int) -> List[D
             "title": chapter.get("title", f"Chapter {i+1}"),
             "start_ms": start_ms,
             "end_ms": end_ms,
-            "topic_keywords": chapter.get("topic_keywords", [])
+            "topic_keywords": chapter.get("topic_keywords", []),
+            "summary": chapter.get("summary", "")
         })
     
     # Ensure first chapter starts at 0
@@ -292,7 +303,8 @@ def _normalize_foundation(result: Dict[str, Any], utterances: List[Dict[str, Any
                 "title": str(chapter.get("title", f"Chapter {i+1}")).strip(),
                 "start_ms": int(chapter.get("start_ms", 0)),
                 "end_ms": int(chapter.get("end_ms", duration_ms)),
-                "topic_keywords": chapter.get("topic_keywords", [])
+                "topic_keywords": chapter.get("topic_keywords", []),
+                "summary": str(chapter.get("summary", "")).strip()
             })
 
     # If no chapters, create a default one
@@ -302,7 +314,8 @@ def _normalize_foundation(result: Dict[str, Any], utterances: List[Dict[str, Any
             "title": "Full Meeting",
             "start_ms": 0,
             "end_ms": duration_ms,
-            "topic_keywords": []
+            "topic_keywords": [],
+            "summary": ""
         })
     else:
         # Repair chapters: sort, clamp, fix overlaps/gaps

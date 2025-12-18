@@ -398,6 +398,8 @@ def _sanitize_narrative_summary(text: str) -> str:
     Remove any extra sections (Six Thinking Hats, Chapters, JSON dumps, etc.)
     that sometimes get appended to the narrative summary by the model.
     Also removes timestamp patterns like (00:00:00) or (00:00:00–00:00:00).
+    
+    IMPORTANT: Only match section headers, not words that appear inside paragraphs!
     """
     if not text:
         return ""
@@ -405,21 +407,20 @@ def _sanitize_narrative_summary(text: str) -> str:
     import re
 
     # Remove timestamp patterns: (HH:MM:SS) or (HH:MM:SS–HH:MM:SS)
-    # This catches patterns like (00:04:37–00:05:04) or (00:02:33)
     text = re.sub(r'\(\d{2}:\d{2}:\d{2}(?:–\d{2}:\d{2}:\d{2})?\)', '', text)
 
     cleaned = text.replace("\r", "\n")
+    
+    # Only truncate at JSON-like sections or explicit unwanted headers
+    # Be very specific to avoid truncating legitimate narrative content
     stop_markers = (
-        "Six Thinking Hats",
-        "Six Thinking Hats Analysis",
-        "Chapters [",
-        "Timeline [",
-        "Action Item",
-        "Achievements",
-        "Blockers",
-        "\"chapters\"",
-        "\"timeline\"",
-        "\"hats\"",
+        '"chapters"',        # JSON key
+        '"timeline"',        # JSON key
+        '"hats"',           # JSON key
+        "Chapters [",       # JSON array start
+        "Timeline [",       # JSON array start
+        "```json",          # Code block
+        "```",              # Code block end (only if at start of line)
     )
 
     lower_cleaned = cleaned.lower()
@@ -429,25 +430,31 @@ def _sanitize_narrative_summary(text: str) -> str:
             cleaned = cleaned[:idx]
             break
 
+    # Remove lines that are clearly section headers for excluded content
+    # Only match if the line IS a header (starts with ** or ## or is standalone)
     lines = []
-    disallowed_starts = (
-        "Chapters [",
-        "Six Thinking Hats",
-        "Six Thinking Hats Analysis",
-        "Timeline [",
-        "Action Item",
-        "Achievements",
-        "Achievement",
-        "Blockers",
-        "Blocker",
-    )
+    excluded_header_patterns = [
+        r'^#+\s*six thinking hats',
+        r'^\*\*six thinking hats',
+        r'^#+\s*chapters\s*$',
+        r'^\*\*chapters\*\*',
+        r'^#+\s*action items',
+        r'^\*\*action items\*\*',
+        r'^#+\s*decisions made',
+        r'^\*\*decisions made\*\*',
+    ]
+    
     for line in cleaned.splitlines():
-        stripped = line.strip()
+        stripped = line.strip().lower()
         if not stripped:
             lines.append("")
             continue
-        if any(stripped.startswith(prefix) for prefix in disallowed_starts):
-            break
+        
+        # Check if this line is an excluded header
+        is_excluded = any(re.match(pattern, stripped) for pattern in excluded_header_patterns)
+        if is_excluded:
+            break  # Stop processing at excluded headers
+            
         lines.append(line)
 
     return "\n".join(lines).strip()

@@ -7,9 +7,10 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { UserDropdown } from '@/components/dashboard/UserDropdown';
 import { UploadModal } from '@/components/dashboard/UploadModal';
+import { InviteMembersModal } from '@/components/dashboard/InviteMembersModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Folder, Users, Calendar, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Search, Folder, Users, Calendar, Loader2, Sparkles, UserPlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -31,6 +32,7 @@ export default function ProjectsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [newProjectName, setNewProjectName] = useState('');
     const [isCreating, setIsCreating] = useState(false);
 
@@ -57,16 +59,44 @@ export default function ProjectsPage() {
     const fetchProjects = async (userId: string) => {
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
+            // Fetch owned projects
+            const { data: ownedProjects, error: ownedError } = await supabase
                 .from('projects')
                 .select('*')
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (ownedError) throw ownedError;
+
+            // Fetch shared projects (where user is a collaborator)
+            const { data: sharedProjectIds, error: collabError } = await supabase
+                .from('project_collaborators')
+                .select('project_id')
+                .eq('user_id', userId);
+
+            if (collabError) throw collabError;
+
+            let sharedProjects: any[] = [];
+            if (sharedProjectIds && sharedProjectIds.length > 0) {
+                const projectIds = sharedProjectIds.map(p => p.project_id);
+                const { data: shared, error: sharedError } = await supabase
+                    .from('projects')
+                    .select('*')
+                    .in('id', projectIds)
+                    .order('created_at', { ascending: false });
+
+                if (sharedError) throw sharedError;
+                sharedProjects = shared || [];
+            }
+
+            // Combine and dedupe (owned + shared)
+            const allProjects = [...(ownedProjects || []), ...sharedProjects];
+            const uniqueProjects = allProjects.filter((project, index, self) =>
+                index === self.findIndex(p => p.id === project.id)
+            );
 
             // Fetch meeting counts for each project
-            const projectsWithCounts = await Promise.all((data || []).map(async (project) => {
+            const projectsWithCounts = await Promise.all(uniqueProjects.map(async (project) => {
                 const { count } = await supabase
                     .from('meetings')
                     .select('*', { count: 'exact', head: true })
@@ -75,8 +105,9 @@ export default function ProjectsPage() {
                 return {
                     ...project,
                     meetings_count: count || 0,
-                    tasks_count: 0, // TODO: Calculate from summaries
-                    tasks_done: 0
+                    tasks_count: 0,
+                    tasks_done: 0,
+                    isShared: project.user_id !== userId // Mark if shared
                 };
             }));
 
@@ -144,6 +175,13 @@ export default function ProjectsPage() {
                         onUploadComplete={() => session?.user && fetchProjects(session.user.id)}
                     />
 
+                    {/* Invite Members Modal */}
+                    <InviteMembersModal
+                        isOpen={isInviteModalOpen}
+                        onClose={() => setIsInviteModalOpen(false)}
+                        userId={session?.user?.id || ''}
+                    />
+
                     {/* Search Bar */}
                     <div className="mb-6 flex gap-4 items-center">
                         <div className="relative flex-1 max-w-md">
@@ -155,13 +193,23 @@ export default function ProjectsPage() {
                                 className="pl-10"
                             />
                         </div>
-                        <Button
-                            onClick={() => setIsCreateModalOpen(true)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                        >
-                            <Plus className="h-4 w-4 mr-2" />
-                            New Project
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button
+                                onClick={() => setIsInviteModalOpen(true)}
+                                variant="outline"
+                                className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                            >
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                Invite Members
+                            </Button>
+                            <Button
+                                onClick={() => setIsCreateModalOpen(true)}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                New Project
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Projects Grid */}

@@ -207,6 +207,7 @@ Return ONLY valid JSON."""
             json_mode=True,
             endpoint=STAGE2_ENDPOINT,
             api_key=STAGE2_KEY
+            # No max_tokens - let GPT-5 use what it needs
         )
         result = json.loads(response_text)
 

@@ -12,8 +12,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------- Defaults / Tunables ----------
-# Use gpt-5-mini for all stages for consistent, high-quality output
-DEFAULT_MODEL = os.getenv("SEGMENTS_LLM_MODEL") or os.getenv("AZURE_AI_DEPLOYMENT", "gpt-5-mini")
+# Use gpt-5-mini for ALL stages for consistent, high-quality output
+DEFAULT_MODEL = "gpt-5-mini"  # Hardcoded to ensure consistency
 
 # Character limits removed for unified architecture
 # No need to truncate or limit input size - modern models have large context windows
@@ -28,16 +28,17 @@ AZURE_AI_KEY = os.getenv("AZURE_AI_KEY")
 AZURE_AI_DEPLOYMENT = os.getenv("AZURE_AI_DEPLOYMENT")
 AZURE_AI_API_VERSION = os.getenv("AZURE_AI_API_VERSION", "2024-05-01-preview")
 
-# Per-stage model configuration (optional - falls back to global config)
-STAGE1_MODEL = os.getenv("STAGE1_MODEL") or AZURE_AI_DEPLOYMENT
+# Per-stage model configuration - ALL use gpt-5-mini for consistency
+# Note: These override any AZURE_AI_DEPLOYMENT setting
+STAGE1_MODEL = os.getenv("STAGE1_MODEL") or "gpt-5-mini"  # Use mini, not nano
 STAGE1_ENDPOINT = os.getenv("STAGE1_ENDPOINT") or AZURE_AI_ENDPOINT
 STAGE1_KEY = os.getenv("STAGE1_KEY") or AZURE_AI_KEY
 
-STAGE2_MODEL = os.getenv("STAGE2_MODEL") or AZURE_AI_DEPLOYMENT
+STAGE2_MODEL = os.getenv("STAGE2_MODEL") or "gpt-5-mini"
 STAGE2_ENDPOINT = os.getenv("STAGE2_ENDPOINT") or AZURE_AI_ENDPOINT
 STAGE2_KEY = os.getenv("STAGE2_KEY") or AZURE_AI_KEY
 
-STAGE3_MODEL = os.getenv("STAGE3_MODEL") or AZURE_AI_DEPLOYMENT
+STAGE3_MODEL = os.getenv("STAGE3_MODEL") or "gpt-5-mini"
 STAGE3_ENDPOINT = os.getenv("STAGE3_ENDPOINT") or AZURE_AI_ENDPOINT
 STAGE3_KEY = os.getenv("STAGE3_KEY") or AZURE_AI_KEY
 
@@ -104,8 +105,10 @@ async def call_ollama_cloud_async(
     if not (target_endpoint and target_key):
         raise RuntimeError("Azure AI credentials are not configured. Please set AZURE_AI_ENDPOINT and AZURE_AI_KEY in .env file")
 
-    # Use the deployment name from env or the provided model parameter
-    deployment = AZURE_AI_DEPLOYMENT if not model or _resolve_model(model) == DEFAULT_MODEL else _resolve_model(model)
+    # IMPORTANT: Use the model parameter passed from each stage, NOT the global AZURE_AI_DEPLOYMENT
+    # Each stage explicitly sets its model (e.g., STAGE1_MODEL = "gpt-5-mini")
+    deployment = _resolve_model(model) if model else AZURE_AI_DEPLOYMENT
+    print(f"[DEBUG] Using deployment: {deployment} (passed model: {model})")
 
     # Azure AI Foundry uses OpenAI-compatible endpoint format
     # Format: https://{endpoint}/openai/v1/chat/completions
@@ -137,6 +140,9 @@ async def call_ollama_cloud_async(
         payload["temperature"] = temperature
 
     if max_tokens is not None:
+        # GPT-5 models (gpt-5-nano, gpt-5-mini) use 'max_completion_tokens'
+        # Older models (gpt-4, gpt-3.5) use 'max_tokens'
+        # Azure AI Foundry with GPT-5 requires max_completion_tokens
         payload["max_completion_tokens"] = max_tokens
 
     if json_mode:
@@ -176,8 +182,38 @@ async def call_ollama_cloud_async(
                 print(f"[DEBUG] Response data keys: {data.keys()}")
 
                 choices = data.get("choices") or [{}]
-                message = choices[0].get("message", {})
+                choice = choices[0]
+                message = choice.get("message", {})
                 content = message.get("content", "")
+                
+                # Extract and log token usage
+                usage = data.get("usage", {})
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+                total_tokens = usage.get("total_tokens", 0)
+                
+                # Get detailed completion breakdown (GPT-5 models)
+                completion_details = usage.get("completion_tokens_details", {})
+                reasoning_tokens = completion_details.get("reasoning_tokens", 0)
+                output_tokens = completion_tokens - reasoning_tokens
+                
+                print(f"[TOKENS] ═══════════════════════════════════")
+                print(f"[TOKENS] Prompt tokens:     {prompt_tokens:,}")
+                print(f"[TOKENS] Completion tokens: {completion_tokens:,}")
+                if reasoning_tokens > 0:
+                    print(f"[TOKENS]   ├─ Reasoning:    {reasoning_tokens:,}")
+                    print(f"[TOKENS]   └─ Output:       {output_tokens:,}")
+                print(f"[TOKENS] Total tokens:      {total_tokens:,}")
+                print(f"[TOKENS] ═══════════════════════════════════")
+                
+                # Check finish_reason to detect truncation
+                finish_reason = choice.get("finish_reason", "unknown")
+                print(f"[DEBUG] Finish reason: {finish_reason}")
+                
+                if finish_reason == "length":
+                    print(f"[WARNING] Response was TRUNCATED due to token limit! Consider increasing max_tokens.")
+                elif finish_reason == "content_filter":
+                    print(f"[WARNING] Response was filtered by content filter.")
 
                 if not content:
                     print("[ERROR] Azure AI returned empty content. Full response:")
