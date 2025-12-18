@@ -53,7 +53,7 @@ export function AuthModal({ isOpen, onClose, message = "Sign in to your account"
                         supabaseClient={supabase}
                         appearance={{ theme: ThemeSupa }}
                         theme="light"
-                        providers={['google', 'github']}
+                        providers={[]}
                         redirectTo={`${origin}/auth/callback`}
                         onlyThirdPartyProviders={false}
                     />

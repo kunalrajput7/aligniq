@@ -22,7 +22,7 @@ export default function Login() {
                     supabaseClient={supabase}
                     appearance={{ theme: ThemeSupa }}
                     theme="dark"
-                    providers={['google', 'github']}
+                    providers={[]}
                     redirectTo={`${origin}/auth/callback`}
                 />
             </div>
