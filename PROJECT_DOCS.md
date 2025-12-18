@@ -1,7 +1,7 @@
-# Summar AI - Complete Project Documentation
+# AlignIQ - Complete Project Documentation
 
-> **Last Updated:** December 17, 2024  
-> **Version:** 2.1.0  
+> **Last Updated:** December 18, 2024  
+> **Version:** 2.2.0  
 > **Tech Stack:** Next.js 14 + FastAPI + Supabase + Azure AI (GPT-5-Mini)
 
 ---
@@ -25,7 +25,7 @@
 
 ## Project Overview
 
-**Summar AI** is a meeting transcript analyzer that processes VTT files and generates comprehensive meeting intelligence:
+**AlignIQ** ("Intelligence for alignment and cohesion") is a meeting transcript analyzer that processes VTT files and generates comprehensive meeting intelligence:
 
 ### Core Features
 - **6-Section Executive Summaries** with structured markdown output
@@ -91,6 +91,7 @@
 │  Token logging enabled  │   │  projects       - Meeting groups   │
 │  Reasoning + Output     │   │  meetings       - Meeting metadata │
 │  breakdown tracked      │   │  meeting_summaries - Analysis JSON │
+│                         │   │  project_collaborators - Sharing   │
 └─────────────────────────┘   └───────────────────────────────────┘
 ```
 
@@ -288,11 +289,13 @@ frontend/
 ├── components/
 │   ├── MeetingDashboard.tsx    # Main meeting view component
 │   ├── dashboard/
-│   │   ├── Sidebar.tsx         # Navigation sidebar (Summar AI branding)
-│   │   ├── ActivityFeed.tsx    # Recent activity (past 3 days)
-│   │   ├── StatsCards.tsx      # Dashboard statistics
+│   │   ├── Sidebar.tsx         # Navigation sidebar (AlignIQ branding)
+│   │   ├── ActivityFeed.tsx    # Recent activity (past 3 days) with real-time updates
+│   │   ├── StatsCards.tsx      # Dashboard statistics with count-up animation
 │   │   ├── MindmapPreview.tsx  # Dashboard mindmap preview
-│   │   ├── UploadModal.tsx     # File upload modal with progress
+│   │   ├── MeetingChains.tsx   # Quick Tips carousel with animations
+│   │   ├── UploadModal.tsx     # File upload with preselectedProjectId support
+│   │   ├── InviteMembersModal.tsx  # Invite collaborators to projects
 │   │   ├── ProcessingNotifications.tsx  # Real-time toast notifications
 │   │   ├── UserDropdown.tsx    # User menu
 │   │   └── WelcomeBanner.tsx   # Welcome message
@@ -675,19 +678,44 @@ npm run dev
 
 ---
 
-## Recent Changes (v2.1.0)
+## Recent Changes (v2.2.0)
 
-### Pipeline Optimization
-1. **Stage 1 Chapter Summaries** - Stage 1 now generates comprehensive chapter summaries (no length limit) with full transcript access
-2. **Stage 3 Optimized** - No longer uses transcript, works from structured data only (~2K tokens vs ~25K)
-3. **GPT-5-Mini for All Stages** - Unified model across stages for consistent performance
-4. **Model Deployment Fix** - Fixed bug where stage-specific model settings were being ignored
-5. **Token Logging** - Each API call now logs prompt, completion, reasoning, and output tokens
+### Project Collaboration
+1. **Invite Members** - Share projects with other users via email/username search
+2. **Shared Badge** - Projects show "Shared" badge when collaborators exist
+3. **Team Members Panel** - Project detail page shows owner + all collaborators
+4. **RLS Policies** - Collaborators can view shared projects and their meetings
 
-### Quality Fixes
-6. **Sanitization Fix** - Fixed `_sanitize_narrative_summary()` that was truncating narratives mid-sentence
-7. **6-Section Enforcement** - Added strong enforcement for all 6 mandatory sections (Meeting Tone, Aligned Thinking, Divergent Perspectives were being skipped)
-8. **"DO NOT SKIP" Markers** - Prompt explicitly warns LLM not to skip the last 3 sections
+### Real-time Updates
+5. **Dashboard Stats Animation** - Numbers count up from 0 with spring animation
+6. **Live Stats Refresh** - StatsCards update in real-time when projects/meetings change
+7. **Activity Feed Live** - Updates instantly when meetings processed or shared
+8. **Collaborator Updates** - Team members panel updates when invites complete
+
+### Streamlined Upload Flow
+9. **Direct Project Upload** - Click "Upload Meeting" in project → file picker opens directly
+10. **Skip Selection Steps** - No more "choose type" or "select project" when in project context
+11. **Direct Invite** - "Invite Members" from project page skips project selection
+
+### Dashboard UI Enhancements
+12. **Quick Tips Carousel** - Animated tips replace Meeting Chains (auto-rotate every 8s)
+13. **Project Cards** - Show Meetings count, Status (Shared/Private), Members count
+14. **Aligned Layout** - Activity Feed and Mindmap boxes have matching heights
+15. **Responsive Scrolling** - Activity feed uses flex-1 for responsive height
+
+### Authentication
+16. **Removed OAuth** - Google/GitHub sign-in buttons removed (email only)
+
+### Database Migrations
+- **008_collaboration_feature.sql** - Creates `project_collaborators` table with RLS
+- **009_fix_rls_policies.sql** - Fixes infinite recursion in collaboration RLS policies
+
+### Previous (v2.1.0)
+- Stage 1 Chapter Summaries with full transcript access
+- Stage 3 Optimized (structured data only, ~2K tokens)
+- GPT-5-Mini unified across all stages
+- Sanitization fix for narrative truncation
+- 6-Section enforcement with "DO NOT SKIP" markers
 
 ### Previous (v2.0.0)
 - Stage 2 Enhanced with tone, convergent_points, divergent_points

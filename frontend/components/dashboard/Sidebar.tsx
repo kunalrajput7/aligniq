@@ -30,17 +30,17 @@ export function Sidebar({ onUploadClick, className }: SidebarProps) {
     return (
         <aside className={cn("flex h-screen w-64 flex-col border-r border-slate-200 bg-slate-50/50 backdrop-blur-xl", className)}>
             {/* Logo Area */}
-            <div className="flex h-16 items-center gap-3 px-6">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden shadow-sm">
+            <div className="flex h-16 items-center px-6">
+                <Link href="/dashboard" className="flex items-center">
                     <Image
-                        src="/logo.jpg"
-                        alt="Summar AI Logo"
-                        width={36}
-                        height={36}
-                        className="object-cover"
+                        src="/logo.png"
+                        alt="AlignIQ"
+                        width={128}
+                        height={32}
+                        className="h-8 w-auto object-contain"
+                        priority
                     />
-                </div>
-                <span className="text-lg font-bold text-slate-900">Summer AI</span>
+                </Link>
             </div>
 
             {/* Upload Button */}

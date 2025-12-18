@@ -7,6 +7,7 @@ import { Sparkles, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AuthModal } from '@/components/AuthModal';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
@@ -95,7 +96,7 @@ export default function Home() {
               transition={{ duration: 0.8, ease: 'easeOut' }}
               className="bg-gradient-to-r from-[#3B82F6] via-[#8B5CF6] to-[#06B6D4] bg-clip-text text-4xl font-bold uppercase tracking-[0.3em] text-transparent md:text-6xl"
             >
-              SUMMER AI
+              ALIGNIQ
             </motion.h1>
           </motion.div>
         )}
@@ -113,10 +114,14 @@ export default function Home() {
           <header className="relative z-10 border-b border-slate-200/50 bg-white/80 backdrop-blur-sm">
             <div className="container mx-auto flex items-center justify-between px-4 py-4 sm:px-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/25">
-                  <Sparkles className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-slate-900">Summer AI</span>
+                <Image
+                  src="/logo.png"
+                  alt="AlignIQ"
+                  width={128}
+                  height={32}
+                  className="h-8 w-auto object-contain"
+                  priority
+                />
               </div>
               <div className="hidden md:flex items-center gap-8">
                 <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">

@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
 
 export const metadata: Metadata = {
-  title: 'Summer AI - Meeting Summarizer',
+  title: 'AlignIQ - Meeting Summarizer',
   description: 'AI-powered meeting intelligence',
 }
 
