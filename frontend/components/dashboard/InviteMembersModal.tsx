@@ -23,9 +23,12 @@ interface InviteMembersModalProps {
     isOpen: boolean;
     onClose: () => void;
     userId: string;
+    preselectedProjectId?: string;
+    preselectedProjectName?: string;
+    onSuccess?: () => void; // Callback when collaborators are successfully added
 }
 
-export function InviteMembersModal({ isOpen, onClose, userId }: InviteMembersModalProps) {
+export function InviteMembersModal({ isOpen, onClose, userId, preselectedProjectId, preselectedProjectName, onSuccess }: InviteMembersModalProps) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -39,12 +42,19 @@ export function InviteMembersModal({ isOpen, onClose, userId }: InviteMembersMod
 
     const supabase = createClient();
 
-    // Fetch user's projects
+    // Set preselected project when modal opens
     useEffect(() => {
-        if (isOpen && userId) {
+        if (isOpen && preselectedProjectId && preselectedProjectName) {
+            setSelectedProject({ id: preselectedProjectId, name: preselectedProjectName });
+        }
+    }, [isOpen, preselectedProjectId, preselectedProjectName]);
+
+    // Fetch user's projects (only if no preselected project)
+    useEffect(() => {
+        if (isOpen && userId && !preselectedProjectId) {
             fetchProjects();
         }
-    }, [isOpen, userId]);
+    }, [isOpen, userId, preselectedProjectId]);
 
     const fetchProjects = async () => {
         setIsLoading(true);
@@ -136,13 +146,18 @@ export function InviteMembersModal({ isOpen, onClose, userId }: InviteMembersMod
 
             setSuccess(`Added ${selectedUsers.length} collaborator(s) to "${selectedProject.name}"`);
             setSelectedUsers([]);
-            setSelectedProject(null);
+
+            // Call success callback to refresh parent data
+            onSuccess?.();
 
             // Auto-close after success
             setTimeout(() => {
                 onClose();
                 setSuccess(null);
-            }, 2000);
+                if (!preselectedProjectId) {
+                    setSelectedProject(null);
+                }
+            }, 1500);
         } catch (err: any) {
             console.error('Error adding collaborators:', err);
             setError(err.message || 'Failed to add collaborators');
@@ -188,33 +203,40 @@ export function InviteMembersModal({ isOpen, onClose, userId }: InviteMembersMod
                         Do you want to invite members on this app to work on a project together?
                     </p>
 
-                    {/* Project Selector */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Select Project
-                        </label>
-                        {isLoading ? (
-                            <div className="flex items-center justify-center py-4">
-                                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                            </div>
-                        ) : (
-                            <select
-                                value={selectedProject?.id || ''}
-                                onChange={(e) => {
-                                    const project = projects.find(p => p.id === e.target.value);
-                                    setSelectedProject(project || null);
-                                }}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            >
-                                <option value="">Choose a project...</option>
-                                {projects.map(project => (
-                                    <option key={project.id} value={project.id}>
-                                        {project.name}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                    </div>
+                    {/* Project Selector - only show if no preselected project */}
+                    {!preselectedProjectId ? (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Select Project
+                            </label>
+                            {isLoading ? (
+                                <div className="flex items-center justify-center py-4">
+                                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                                </div>
+                            ) : (
+                                <select
+                                    value={selectedProject?.id || ''}
+                                    onChange={(e) => {
+                                        const project = projects.find(p => p.id === e.target.value);
+                                        setSelectedProject(project || null);
+                                    }}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                >
+                                    <option value="">Choose a project...</option>
+                                    {projects.map(project => (
+                                        <option key={project.id} value={project.id}>
+                                            {project.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="bg-slate-50 px-3 py-2 rounded-lg">
+                            <p className="text-xs text-slate-500">Project</p>
+                            <p className="font-medium text-slate-900">{preselectedProjectName}</p>
+                        </div>
+                    )}
 
                     {/* User Search - Only show when project is selected */}
                     {selectedProject && (

@@ -20,11 +20,12 @@ interface UploadModalProps {
     onClose: () => void;
     userId: string;
     onUploadComplete?: () => void;
+    preselectedProjectId?: string; // When set, skip step selection and upload directly to this project
 }
 
 type UploadStep = 'choose' | 'project-select' | 'uploading' | 'complete';
 
-export function UploadModal({ isOpen, onClose, userId, onUploadComplete }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, userId, onUploadComplete, preselectedProjectId }: UploadModalProps) {
     const [step, setStep] = useState<UploadStep>('choose');
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -38,6 +39,18 @@ export function UploadModal({ isOpen, onClose, userId, onUploadComplete }: Uploa
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const supabase = createClient();
+
+    // When modal opens with preselectedProjectId, trigger file upload directly
+    useEffect(() => {
+        if (isOpen && preselectedProjectId) {
+            setSelectedProjectId(preselectedProjectId);
+            setUploadType('project');
+            // Small delay to ensure refs are ready
+            setTimeout(() => {
+                fileInputRef.current?.click();
+            }, 100);
+        }
+    }, [isOpen, preselectedProjectId]);
 
     // Fetch projects when modal opens and project type is selected
     useEffect(() => {

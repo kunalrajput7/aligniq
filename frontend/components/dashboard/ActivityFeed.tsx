@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from "framer-motion";
-import { Users, ListTodo, Network, Clock, ExternalLink, Calendar } from "lucide-react";
+import { Users, ListTodo, Network, Clock, ExternalLink, Calendar, Share2 } from "lucide-react";
 import { createClient } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,6 +15,12 @@ interface TodayMeeting {
     status: string;
     taskCount: number;
     hasMindmap: boolean;
+    isSharing?: boolean;
+    sharingDetails?: {
+        projectName: string;
+        sharedBy?: string;
+        sharedWith?: string[];
+    };
 }
 
 export function ActivityFeed() {
@@ -31,40 +37,85 @@ export function ActivityFeed() {
                     return;
                 }
 
+                const userId = session.user.id;
+
                 // Get start of 3 days ago (UTC)
                 const threeDaysAgo = new Date();
                 threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
                 threeDaysAgo.setHours(0, 0, 0, 0);
                 const threeDaysAgoISO = threeDaysAgo.toISOString();
 
-                // Fetch meetings from past 3 days
-                const { data: meetingsData, error: meetingsError } = await supabase
+                // Fetch owned meetings from past 3 days
+                const { data: ownedMeetings, error: ownedError } = await supabase
                     .from('meetings')
                     .select('id, title, created_at, participants, status')
-                    .eq('user_id', session.user.id)
+                    .eq('user_id', userId)
                     .gte('created_at', threeDaysAgoISO)
                     .order('created_at', { ascending: false });
 
-                if (meetingsError) {
-                    console.error('Error fetching meetings:', meetingsError);
-                    setIsLoading(false);
-                    return;
+                if (ownedError) {
+                    console.error('Error fetching owned meetings:', ownedError);
                 }
 
-                if (!meetingsData || meetingsData.length === 0) {
-                    setMeetings([]);
-                    setIsLoading(false);
-                    return;
+                // Fetch shared project IDs
+                const { data: sharedProjects } = await supabase
+                    .from('project_collaborators')
+                    .select('project_id')
+                    .eq('user_id', userId);
+
+                let sharedMeetings: any[] = [];
+                if (sharedProjects && sharedProjects.length > 0) {
+                    const projectIds = sharedProjects.map(p => p.project_id);
+                    const { data: shared } = await supabase
+                        .from('meetings')
+                        .select('id, title, created_at, participants, status')
+                        .in('project_id', projectIds)
+                        .gte('created_at', threeDaysAgoISO)
+                        .order('created_at', { ascending: false });
+                    sharedMeetings = shared || [];
                 }
+
+                // Fetch sharing activities (invitations received)
+                const { data: invitesReceived } = await supabase
+                    .from('project_collaborators')
+                    .select(`
+                        project_id,
+                        invited_at,
+                        invited_by,
+                        projects:project_id(name),
+                        inviter:invited_by(username, email)
+                    `)
+                    .eq('user_id', userId)
+                    .gte('invited_at', threeDaysAgoISO)
+                    .order('invited_at', { ascending: false });
+
+                // Fetch sharing activities (invitations sent by current user)
+                const { data: invitesSent } = await supabase
+                    .from('project_collaborators')
+                    .select(`
+                        project_id,
+                        invited_at,
+                        user_id,
+                        projects:project_id(name),
+                        invitee:user_id(username, email)
+                    `)
+                    .eq('invited_by', userId)
+                    .gte('invited_at', threeDaysAgoISO)
+                    .order('invited_at', { ascending: false });
+
+                // Combine all meetings
+                const allMeetings = [...(ownedMeetings || []), ...sharedMeetings];
+                const uniqueMeetings = allMeetings.filter((meeting, index, self) =>
+                    index === self.findIndex(m => m.id === meeting.id)
+                );
 
                 // For each meeting, get task count and mindmap status
                 const enrichedMeetings: TodayMeeting[] = await Promise.all(
-                    meetingsData.map(async (meeting) => {
+                    uniqueMeetings.map(async (meeting) => {
                         let taskCount = 0;
                         let hasMindmap = false;
 
                         if (meeting.status === 'completed') {
-                            // Fetch summary to get task count and mindmap
                             const { data: summary } = await supabase
                                 .from('meeting_summaries')
                                 .select('summary_json, mindmap_json')
@@ -89,15 +140,70 @@ export function ActivityFeed() {
                     })
                 );
 
-                setMeetings(enrichedMeetings);
+                // Add sharing activity items for invites received
+                const sharingReceivedItems: TodayMeeting[] = (invitesReceived || []).map((invite: any) => ({
+                    id: `share-received-${invite.project_id}`,
+                    title: `Invited to "${invite.projects?.name || 'Project'}"`,
+                    created_at: invite.invited_at,
+                    participants: [],
+                    status: 'sharing',
+                    taskCount: 0,
+                    hasMindmap: false,
+                    isSharing: true,
+                    sharingDetails: {
+                        projectName: invite.projects?.name || 'Project',
+                        sharedBy: invite.inviter?.username || invite.inviter?.email || 'Someone',
+                    },
+                }));
+
+                // Add sharing activity items for invites sent
+                const sharingSentItems: TodayMeeting[] = (invitesSent || []).map((invite: any) => ({
+                    id: `share-sent-${invite.project_id}-${invite.user_id}`,
+                    title: `Shared "${invite.projects?.name || 'Project'}"`,
+                    created_at: invite.invited_at,
+                    participants: [],
+                    status: 'sharing',
+                    taskCount: 0,
+                    hasMindmap: false,
+                    isSharing: true,
+                    sharingDetails: {
+                        projectName: invite.projects?.name || 'Project',
+                        sharedWith: [invite.invitee?.username || invite.invitee?.email || 'User'],
+                    },
+                }));
+
+                // Combine all activities and sort by date
+                const allActivities = [...enrichedMeetings, ...sharingReceivedItems, ...sharingSentItems];
+                allActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+                setMeetings(allActivities);
             } catch (err) {
-                console.error('Error in fetchTodaysMeetings:', err);
+                console.error('Error in fetchRecentMeetings:', err);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchRecentMeetings();
+
+        // Real-time subscription for meetings and collaboration changes
+        const channel = supabase
+            .channel('activity_feed_realtime')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'meetings' },
+                () => fetchRecentMeetings()
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'project_collaborators' },
+                () => fetchRecentMeetings()
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [supabase]);
 
     const formatTime = (dateStr: string) => {
@@ -133,7 +239,7 @@ export function ActivityFeed() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="row-span-2 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
+            className="rounded-2xl border border-slate-100 bg-white pt-6 px-5 pb-4 shadow-sm flex flex-col max-h-[500px]"
         >
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
@@ -145,8 +251,8 @@ export function ActivityFeed() {
                 </span>
             </div>
 
-            {/* Scrollable container */}
-            <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-4">
+            {/* Scrollable container - fills remaining space */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0">
                 {isLoading ? (
                     <div className="flex items-center justify-center py-8">
                         <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
@@ -178,15 +284,19 @@ export function ActivityFeed() {
                             )}
 
                             <div className="flex gap-3">
-                                {/* Logo icon */}
-                                <div className="relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full overflow-hidden ring-4 ring-white bg-white">
-                                    <Image
-                                        src="/logo.jpg"
-                                        alt="Logo"
-                                        width={24}
-                                        height={24}
-                                        className="object-cover"
-                                    />
+                                {/* Icon - different for sharing vs meeting */}
+                                <div className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full overflow-hidden ring-4 ring-white ${meeting.isSharing ? 'bg-blue-500' : 'bg-white'}`}>
+                                    {meeting.isSharing ? (
+                                        <Share2 className="h-3.5 w-3.5 text-white" />
+                                    ) : (
+                                        <Image
+                                            src="/logo.jpg"
+                                            alt="Logo"
+                                            width={24}
+                                            height={24}
+                                            className="object-cover"
+                                        />
+                                    )}
                                 </div>
 
                                 <div className="flex-1 min-w-0">
@@ -201,34 +311,53 @@ export function ActivityFeed() {
                                                 Processing...
                                             </span>
                                         )}
+                                        {meeting.isSharing && (
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                                Collaboration
+                                            </span>
+                                        )}
                                     </div>
 
-                                    {/* Meeting title */}
+                                    {/* Title */}
                                     <p className="text-sm font-semibold text-slate-900 truncate">
                                         {meeting.title}
                                     </p>
 
-                                    {/* Meeting stats */}
-                                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                        {meeting.participants.length > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <Users className="h-3 w-3 text-blue-400" />
-                                                {meeting.participants.length} participants
-                                            </span>
-                                        )}
-                                        {meeting.taskCount > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <ListTodo className="h-3 w-3 text-green-500" />
-                                                {meeting.taskCount} tasks
-                                            </span>
-                                        )}
-                                        {meeting.hasMindmap && (
-                                            <span className="flex items-center gap-1">
-                                                <Network className="h-3 w-3 text-purple-500" />
-                                                Mindmap
-                                            </span>
-                                        )}
-                                    </div>
+                                    {/* Sharing details */}
+                                    {meeting.isSharing && meeting.sharingDetails && (
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            {meeting.sharingDetails.sharedBy && (
+                                                <span>{meeting.sharingDetails.sharedBy} shared this project with you</span>
+                                            )}
+                                            {meeting.sharingDetails.sharedWith && (
+                                                <span>Shared with {meeting.sharingDetails.sharedWith.join(', ')}</span>
+                                            )}
+                                        </p>
+                                    )}
+
+                                    {/* Meeting stats - only show for meetings */}
+                                    {!meeting.isSharing && (
+                                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                                            {meeting.participants.length > 0 && (
+                                                <span className="flex items-center gap-1">
+                                                    <Users className="h-3 w-3 text-blue-400" />
+                                                    {meeting.participants.length} participants
+                                                </span>
+                                            )}
+                                            {meeting.taskCount > 0 && (
+                                                <span className="flex items-center gap-1">
+                                                    <ListTodo className="h-3 w-3 text-green-500" />
+                                                    {meeting.taskCount} tasks
+                                                </span>
+                                            )}
+                                            {meeting.hasMindmap && (
+                                                <span className="flex items-center gap-1">
+                                                    <Network className="h-3 w-3 text-purple-500" />
+                                                    Mindmap
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* View Summary link */}
                                     {meeting.status === 'completed' && (

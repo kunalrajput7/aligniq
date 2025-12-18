@@ -115,11 +115,13 @@ export default function DashboardPage() {
 
                         <StatsCards userId={session?.user?.id} />
 
-                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-stretch">
                             <ActivityFeed />
-                            <div className="space-y-6 lg:col-span-2">
+                            <div className="lg:col-span-2 flex flex-col gap-6">
                                 <MeetingChains />
-                                <MindmapPreview />
+                                <div className="flex-1">
+                                    <MindmapPreview />
+                                </div>
                             </div>
                         </div>
                     </motion.div>

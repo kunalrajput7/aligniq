@@ -20,9 +20,13 @@ interface Project {
     status: string;
     deadline: string | null;
     created_at: string;
+    user_id: string;
     meetings_count?: number;
     tasks_count?: number;
     tasks_done?: number;
+    isShared?: boolean;
+    hasCollaborators?: boolean;
+    collaborators_count?: number;
 }
 
 export default function ProjectsPage() {
@@ -95,19 +99,26 @@ export default function ProjectsPage() {
                 index === self.findIndex(p => p.id === project.id)
             );
 
-            // Fetch meeting counts for each project
+            // Fetch meeting counts and collaborator counts for each project
             const projectsWithCounts = await Promise.all(uniqueProjects.map(async (project) => {
-                const { count } = await supabase
+                const { count: meetingsCount } = await supabase
                     .from('meetings')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('project_id', project.id);
+
+                const { count: collabCount } = await supabase
+                    .from('project_collaborators')
                     .select('*', { count: 'exact', head: true })
                     .eq('project_id', project.id);
 
                 return {
                     ...project,
-                    meetings_count: count || 0,
+                    meetings_count: meetingsCount || 0,
                     tasks_count: 0,
                     tasks_done: 0,
-                    isShared: project.user_id !== userId // Mark if shared
+                    isShared: project.user_id !== userId,
+                    hasCollaborators: (collabCount || 0) > 0,
+                    collaborators_count: collabCount || 0
                 };
             }));
 
@@ -245,8 +256,16 @@ export default function ProjectsPage() {
                                 >
                                     {/* Header */}
                                     <div className="flex items-start justify-between mb-4">
-                                        <h3 className="font-semibold text-slate-900 truncate flex-1">{project.name}</h3>
-                                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700 ml-2">
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <h3 className="font-semibold text-slate-900 truncate">{project.name}</h3>
+                                            {(project.hasCollaborators || project.isShared) && (
+                                                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 flex items-center gap-1 shrink-0">
+                                                    <Users className="h-3 w-3" />
+                                                    Shared
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700 ml-2 shrink-0">
                                             {project.status === 'active' ? 'In Progress' : project.status}
                                         </span>
                                     </div>
@@ -254,19 +273,19 @@ export default function ProjectsPage() {
                                     {/* Stats */}
                                     <div className="grid grid-cols-3 gap-4 text-sm mb-4">
                                         <div>
-                                            <p className="text-slate-500">Meetings:</p>
+                                            <p className="text-slate-500">Meetings</p>
                                             <p className="font-semibold text-slate-900">{project.meetings_count || 0}</p>
                                         </div>
                                         <div>
-                                            <p className="text-slate-500">Tasks:</p>
+                                            <p className="text-slate-500">Status</p>
                                             <p className="font-semibold text-slate-900">
-                                                {project.tasks_done || 0}/{project.tasks_count || 0} Done
+                                                {(project.hasCollaborators || project.isShared) ? 'Shared' : 'Private'}
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-slate-500">Deadline:</p>
+                                            <p className="text-slate-500">Members</p>
                                             <p className="font-semibold text-slate-900">
-                                                {project.deadline ? formatDate(project.deadline) : '-'}
+                                                {1 + (project.collaborators_count || 0)}
                                             </p>
                                         </div>
                                     </div>

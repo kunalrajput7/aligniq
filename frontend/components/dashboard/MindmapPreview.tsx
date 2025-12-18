@@ -198,7 +198,7 @@ export function MindmapPreview() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
+            className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm flex flex-col h-full"
         >
             <div className="flex items-center justify-between z-10 relative">
                 <div>
@@ -220,7 +220,7 @@ export function MindmapPreview() {
                 )}
             </div>
 
-            <div className="mt-4 relative h-48 overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700">
+            <div className="mt-4 relative flex-1 min-h-[200px] overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700">
                 {isLoading ? (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
