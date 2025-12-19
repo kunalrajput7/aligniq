@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from "framer-motion";
-import { Users, ListTodo, Network, Clock, ExternalLink, Calendar, Share2 } from "lucide-react";
+import { Users, ListTodo, Network, Clock, ExternalLink, Calendar, Share2, Video } from "lucide-react";
 import { createClient } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -289,13 +289,7 @@ export function ActivityFeed() {
                                     {meeting.isSharing ? (
                                         <Share2 className="h-3.5 w-3.5 text-white" />
                                     ) : (
-                                        <Image
-                                            src="/logo.jpg"
-                                            alt="Logo"
-                                            width={24}
-                                            height={24}
-                                            className="object-cover"
-                                        />
+                                        <Video className="h-3.5 w-3.5 text-indigo-500" />
                                     )}
                                 </div>
 

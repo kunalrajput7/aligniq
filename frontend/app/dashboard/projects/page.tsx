@@ -27,6 +27,7 @@ interface Project {
     isShared?: boolean;
     hasCollaborators?: boolean;
     collaborators_count?: number;
+    top_meeting_at?: string;
 }
 
 export default function ProjectsPage() {
@@ -99,12 +100,15 @@ export default function ProjectsPage() {
                 index === self.findIndex(p => p.id === project.id)
             );
 
-            // Fetch meeting counts and collaborator counts for each project
+            // Fetch meeting counts, latest meeting, and collaborator counts for each project
             const projectsWithCounts = await Promise.all(uniqueProjects.map(async (project) => {
-                const { count: meetingsCount } = await supabase
+                const { count: meetingsCount, data: latestMeeting } = await supabase
                     .from('meetings')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('project_id', project.id);
+                    .select('created_at', { count: 'exact', head: false })
+                    .eq('project_id', project.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
 
                 const { count: collabCount } = await supabase
                     .from('project_collaborators')
@@ -113,6 +117,7 @@ export default function ProjectsPage() {
 
                 return {
                     ...project,
+                    top_meeting_at: latestMeeting?.created_at, // Store latest meeting time
                     meetings_count: meetingsCount || 0,
                     tasks_count: 0,
                     tasks_done: 0,
@@ -121,6 +126,13 @@ export default function ProjectsPage() {
                     collaborators_count: collabCount || 0
                 };
             }));
+
+            // Sort by latest meeting activity, falling back to project creation date
+            projectsWithCounts.sort((a, b) => {
+                const dateA = new Date(a.top_meeting_at || a.created_at).getTime();
+                const dateB = new Date(b.top_meeting_at || b.created_at).getTime();
+                return dateB - dateA; // Descending
+            });
 
             setProjects(projectsWithCounts);
         } catch (err) {
