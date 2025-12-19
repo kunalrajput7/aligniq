@@ -6,7 +6,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Menu, X, ArrowRight } from 'lucide-react';
 
-export function Navbar() {
+interface NavbarProps {
+    onSignInClick: () => void;
+}
+
+export function Navbar({ onSignInClick }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -73,6 +77,7 @@ export function Navbar() {
                         <motion.button
                             whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,1)' }}
                             whileTap={{ scale: 0.98 }}
+                            onClick={onSignInClick}
                             className="bg-white/90 backdrop-blur-sm text-black px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] flex items-center gap-2"
                         >
                             Get Started
@@ -112,8 +117,8 @@ export function Navbar() {
                                 </Link>
                             ))}
                             <div className="w-12 h-px bg-white/10 my-2" />
-                            <Link href="/login" className="text-white/40 font-black uppercase tracking-widest text-xs">Log In</Link>
-                            <button className="w-full bg-white text-black py-5 rounded-[1.5rem] font-black uppercase tracking-tight text-lg shadow-2xl">
+                            <button onClick={() => { setMobileMenuOpen(false); onSignInClick(); }} className="text-white/40 font-black uppercase tracking-widest text-xs">Log In</button>
+                            <button onClick={() => { setMobileMenuOpen(false); onSignInClick(); }} className="w-full bg-white text-black py-5 rounded-[1.5rem] font-black uppercase tracking-tight text-lg shadow-2xl">
                                 Join AlignIQ
                             </button>
                         </div>

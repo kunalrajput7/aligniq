@@ -100,12 +100,12 @@ export default function Home() {
         message="Transform your meetings today."
       />
 
-      <Navbar />
+      <Navbar onSignInClick={() => setIsAuthModalOpen(true)} />
 
       <main className="relative z-10">
         {/* TOP SECTION - SCALED 0.8 */}
         <ZoomWrapper>
-          <HeroSection />
+          <HeroSection onSignInClick={() => setIsAuthModalOpen(true)} />
 
           {/* <div className="glowing-divider my-10 md:my-16" /> */}
 

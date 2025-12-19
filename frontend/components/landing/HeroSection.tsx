@@ -4,7 +4,11 @@ import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ChevronDown, Sparkles } from 'lucide-react';
 
-export function HeroSection() {
+interface HeroSectionProps {
+    onSignInClick: () => void;
+}
+
+export function HeroSection({ onSignInClick }: HeroSectionProps) {
     const { scrollY } = useScroll();
 
     // Scroll Animations - Pixel Based Staggered Exit
@@ -112,14 +116,15 @@ export function HeroSection() {
                             <motion.button
                                 whileHover={{ scale: 1.02, backgroundColor: "rgba(255,255,255,0.95)" }}
                                 whileTap={{ scale: 0.98 }}
+                                onClick={onSignInClick}
                                 className="group relative bg-white text-black px-10 py-3.5 rounded-xl font-black text-sm tracking-tight transition-all shadow-[0_0_30px_rgba(255,255,255,0.1)]"
                             >
                                 Get Started Free
                             </motion.button>
-                            <button className="text-white/50 hover:text-white transition-all font-bold text-sm flex items-center gap-2 group">
-                                Book a Strategy Call
+                            <a href="https://www.waferwire.com/" target="_blank" rel="noopener noreferrer" className="text-white/50 hover:text-white transition-all font-bold text-sm flex items-center gap-2 group">
+                                Explore WCT
                                 <ChevronDown className="-rotate-90 group-hover:translate-x-1 transition-transform" size={16} />
-                            </button>
+                            </a>
                         </motion.div>
                     </motion.div>
                 </div>
