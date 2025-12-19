@@ -7,7 +7,7 @@ const config = {
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
-	],
+  ],
   prefix: "",
   theme: {
     container: {
@@ -21,6 +21,9 @@ const config = {
       fontFamily: {
         ubuntu: ['var(--font-ubuntu)', 'sans-serif'],
         italianno: ['var(--font-italianno)', 'cursive'],
+        sans: ['var(--font-inter)', 'sans-serif'],
+        outfit: ['var(--font-outfit)', 'sans-serif'],
+        'serif-italic': ['var(--font-playfair)', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",

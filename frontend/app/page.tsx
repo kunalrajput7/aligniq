@@ -1,340 +1,298 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
+import { Navbar } from '@/components/landing/Navbar';
+import { HeroSection } from '@/components/landing/HeroSection';
+import { VirtuousCircle } from '@/components/landing/VirtuousCircle';
+import { BentoFeatures } from '@/components/landing/BentoFeatures';
+import { Footer } from '@/components/landing/Footer';
+import { AuthModal } from '@/components/AuthModal';
 import { createClient } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Sparkles, Loader2 } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { AuthModal } from '@/components/AuthModal';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowRight, Sparkles } from 'lucide-react';
+
+// Utility wrapper for the "80% Zoom" aesthetic
+// Using CSS 'zoom' instead of transform to avoid layout spacing issues on Windows/Chromium
+const ZoomWrapper = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
+  <div className={className} style={{ zoom: 0.8 }}>
+    {children}
+  </div>
+);
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authMessage, setAuthMessage] = useState("Sign in to your account");
   const [session, setSession] = useState<Session | null>(null);
   const supabase = createClient();
-  const router = useRouter();
 
   useEffect(() => {
+    // Session handling
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) {
-        // If already logged in, we could redirect, but usually landing page is accessible
-        // router.push('/dashboard');
-      }
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
-  }, [supabase.auth, router]);
+    // Intro splash screen
+    const timer = setTimeout(() => setShowIntro(false), 2400);
 
-  useEffect(() => {
-    if (!showIntro) {
-      return;
-    }
-    const timer = setTimeout(() => setShowIntro(false), 2000);
-    return () => clearTimeout(timer);
-  }, [showIntro]);
-
-  const handleSignInClick = () => {
-    if (session) {
-      router.push('/dashboard');
-    } else {
-      setAuthMessage("Sign in to your account");
-      setIsAuthModalOpen(true);
-    }
-  };
-
-  const handleUploadClick = () => {
-    if (session) {
-      router.push('/dashboard');
-    } else {
-      setAuthMessage("Sign in to upload transcript");
-      setIsAuthModalOpen(true);
-    }
-  };
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timer);
+    };
+  }, [supabase.auth]);
 
   return (
-    <motion.main
-      className="relative min-h-screen overflow-hidden bg-[#F8FAFC]"
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.6, ease: [0.4, 0, 1, 1] as const }}
-    >
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        message={authMessage}
-      />
-
-      {/* Subtle dot pattern background */}
-      <div className="absolute inset-0 opacity-[0.015]" style={{
-        backgroundImage: 'radial-gradient(circle, #64748B 1px, transparent 1px)',
-        backgroundSize: '24px 24px'
-      }} />
+    <div className="relative bg-background selection:bg-cyan-500/30 overflow-x-hidden">
+      {/* Cinematic Noise Overlay */}
+      <div className="noise-overlay fixed inset-0 z-[999] pointer-events-none" />
 
       <AnimatePresence>
         {showIntro && (
           <motion.div
-            key="intro"
-            className="absolute inset-0 z-50 flex items-center justify-center bg-white"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            key="splash"
+            initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-[1000] bg-black flex items-center justify-center p-6"
           >
-            <motion.h1
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -24 }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-              className="bg-gradient-to-r from-[#3B82F6] via-[#8B5CF6] to-[#06B6D4] bg-clip-text text-4xl font-bold uppercase tracking-[0.3em] text-transparent md:text-6xl"
-            >
-              ALIGNIQ
-            </motion.h1>
+            <div className="text-center space-y-4">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: "100%" }}
+                transition={{ duration: 1.5, ease: "easeInOut" }}
+                className="h-px bg-gradient-to-r from-transparent via-white/50 to-transparent mb-8"
+              />
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-white text-5xl md:text-8xl font-black uppercase tracking-[0.4em] leading-tight"
+              >
+                ALIGNIQ
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="text-white/20 text-xs uppercase tracking-[0.6em] font-black"
+              >
+                Intelligence for Cohesion
+              </motion.p>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: "100%" }}
+                transition={{ duration: 1.5, ease: "easeInOut" }}
+                className="h-px bg-gradient-to-r from-transparent via-white/50 to-transparent mt-8"
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {!showIntro && (
-        <motion.section
-          key="landing"
-          className="relative z-10 min-h-screen"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6 }}
-        >
-          {/* Header */}
-          <header className="relative z-10 border-b border-slate-200/50 bg-white/80 backdrop-blur-sm">
-            <div className="container mx-auto flex items-center justify-between px-4 py-4 sm:px-6">
-              <div className="flex items-center gap-3">
-                <Image
-                  src="/logo.png"
-                  alt="AlignIQ"
-                  width={128}
-                  height={32}
-                  className="h-8 w-auto object-contain"
-                  priority
-                />
-              </div>
-              <div className="hidden md:flex items-center gap-8">
-                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
-                  Features
-                </button>
-                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
-                  Solutions
-                </button>
-                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
-                  Resources
-                </button>
-                <button className="text-sm font-light text-slate-600 transition hover:text-slate-900">
-                  Pricing
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSignInClick}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  {session ? "Dashboard" : "Sign in"}
-                </button>
-              </div>
-            </div>
-          </header>
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        message="Transform your meetings today."
+      />
 
-          {/* Hero Section with Floating Elements */}
-          <div className="container relative mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-20 sm:pb-32">
-            {/* Top Left: Sticky Note */}
-            <motion.div
-              className="absolute left-4 top-8 w-48 sm:w-64 rotate-[-3deg] hidden lg:block"
-              initial={{ opacity: 0, y: -20, rotate: -6 }}
-              animate={{ opacity: 1, y: 0, rotate: -3 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              style={{
-                animation: 'float 6s ease-in-out infinite'
-              }}
-            >
-              <div className="rounded-lg bg-gradient-to-br from-yellow-200 to-yellow-300 p-6 shadow-2xl shadow-yellow-500/20">
-                <p className="text-sm leading-relaxed text-slate-800">
-                  <span className="font-semibold">Quick Tip:</span>
-                  <br />
-                  Upload your .vtt transcript and get instant AI-powered insights in seconds!
-                </p>
-              </div>
-              <div className="mt-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500 shadow-2xl shadow-blue-500/40">
-                <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            </motion.div>
+      <Navbar />
 
-            {/* Top Center: App Icons */}
-            <motion.div
-              className="absolute left-1/2 top-6 sm:top-12 -translate-x-1/2 hidden md:block"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              style={{
-                animation: 'float 5s ease-in-out infinite 0.5s'
-              }}
-            >
-              <div className="rounded-2xl bg-white p-4 shadow-2xl shadow-slate-900/10">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500" />
-                  <div className="h-8 w-8 rounded-full bg-slate-800" />
-                  <div className="h-8 w-8 rounded-full bg-slate-800" />
-                  <div className="h-8 w-8 rounded-full bg-slate-800" />
-                </div>
-              </div>
-            </motion.div>
+      <main className="relative z-10">
+        {/* TOP SECTION - SCALED 0.8 */}
+        <ZoomWrapper>
+          <HeroSection />
 
-            {/* Top Right: Action Items Card */}
-            <motion.div
-              className="absolute right-4 top-12 sm:right-8 sm:top-20 w-64 sm:w-72 rotate-[8deg] hidden xl:block"
-              initial={{ opacity: 0, y: -20, rotate: 12 }}
-              animate={{ opacity: 1, y: 0, rotate: 8 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              style={{
-                animation: 'float 7s ease-in-out infinite 1s'
-              }}
-            >
-              <div className="rounded-2xl bg-white p-5 shadow-2xl shadow-slate-900/10">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Action Items
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-500">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-slate-900">Review Quarterly Results</div>
-                    <div className="mt-1 text-sm text-slate-600">Marketing team presentation</div>
-                    <div className="mt-2 flex items-center gap-2 text-xs">
-                      <span className="flex items-center gap-1 text-cyan-600">
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Due: Next Week
+          {/* <div className="glowing-divider my-10 md:my-16" /> */}
+
+          {/* The Problem / Narrative Transition - Refined Scale & Margins */}
+          <section className="relative h-screen min-h-[900px] flex items-center justify-center py-16 md:py-20 overflow-hidden">
+            {/* Section Atmosphere */}
+            <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
+
+            <div className="container mx-auto px-6 grid md:grid-cols-2 gap-16 items-center relative z-10">
+              <motion.div
+                initial={{ opacity: 0, x: -30, scale: 0.95 }}
+                whileInView={{ opacity: 1, x: 0, scale: 1 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className="relative"
+              >
+                {/* Expert Insight Visual - Scaled Down, Removed Borders */}
+                <div className="relative glass-dark rounded-3xl p-10 aspect-square flex flex-col justify-center overflow-hidden group max-w-md mx-auto">
+                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
+                  {/* Visual Grid Background */}
+                  <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{
+                    backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+                    backgroundSize: '24px 24px'
+                  }} />
+
+                  <div className="relative z-10 space-y-6">
+                    <motion.div
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center"
+                    >
+                      <Sparkles size={20} className="text-cyan-400" />
+                    </motion.div>
+                    <div>
+                      <span className="text-6xl font-black text-white tracking-tighter leading-none">
+                        40<span className="text-cyan-500 font-serif-italic ml-2 text-4xl">%</span>
                       </span>
+                      <p className="text-white/40 text-sm font-light leading-relaxed mt-3 max-w-[200px]">
+                        Average strategic recall loss in enterprise teams after 24 hours.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-1 w-6 bg-white/10 rounded-full" />
+                      ))}
+                      <motion.div
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="h-1 w-6 bg-cyan-500 rounded-full"
+                      />
                     </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
 
-            {/* Center: Main Headline */}
-            <div className="relative z-10 mx-auto mt-16 sm:mt-24 max-w-4xl text-center">
-              <motion.h1
-                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight text-slate-900"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.1 }}
-              >
-                Transform meetings into
-                <br />
-                <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
-                  actionable insights
-                </span>
-              </motion.h1>
-              <motion.p
-                className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg md:text-xl text-slate-600 px-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-              >
-                Efficiently analyze meeting transcripts and generate comprehensive summaries with AI-powered intelligence.
-              </motion.p>
               <motion.div
-                className="mt-8 sm:mt-10 flex items-center justify-center gap-4 px-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.3 }}
+                initial={{ opacity: 0, x: 30, scale: 0.95 }}
+                whileInView={{ opacity: 1, x: 0, scale: 1 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                className="space-y-8"
               >
-                <button
-                  onClick={handleUploadClick}
-                  className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-semibold text-white shadow-2xl shadow-blue-500/40 transition hover:shadow-2xl hover:shadow-blue-500/60 disabled:opacity-70"
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-bold text-cyan-400 uppercase tracking-widest">
+                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  The Friction Report
+                </div>
+                <h3 className="text-4xl md:text-6xl font-black text-white leading-[0.9] tracking-tighter">
+                  STOP LOSING <br />
+                  <span className="text-white/20 font-serif-italic">strategic momentum.</span>
+                </h3>
+                <p className="text-lg text-white/40 font-light leading-relaxed max-w-lg">
+                  Meetings shouldn't be a void where information dies. AlignIQ bridges the gap between
+                  <span className="text-white/80 italic px-2">raw dialogue</span> and
+                  <span className="text-white/80 italic px-2">executable intelligence</span>,
+                  ensuring every decision sticks.
+                </p>
+
+                <motion.div
+                  whileHover={{ x: 10 }}
+                  className="pt-2 flex items-center gap-4 text-white/20 cursor-pointer group"
                 >
-                  <span className="relative z-10">Upload transcript</span>
-                  <div className="absolute inset-0 -z-0 bg-gradient-to-r from-cyan-500 to-blue-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                </button>
+                  <div className="w-12 h-[1px] bg-white/10 group-hover:w-20 group-hover:bg-cyan-500/50 transition-all duration-500" />
+                  <span className="text-[9px] uppercase font-black tracking-[0.4em] group-hover:text-white transition-colors">Read the Manifesto</span>
+                </motion.div>
+              </motion.div>
+            </div>
+          </section>
+        </ZoomWrapper>
+
+        {/* Virtuous Circle - UNSCALED (100% Impact) */}
+        {/* <div className="glowing-divider my-10 md:my-10" /> */}
+        <VirtuousCircle />
+        {/* <div className="glowing-divider my-10 md:my-16" /> */}
+
+        {/* BOTTOM SECTION - SCALED 0.8 */}
+        <ZoomWrapper>
+          {/* Feature Bento Grid */}
+          <BentoFeatures />
+
+          {/* <div className="glowing-divider my-10 md:my-16" /> */}
+
+          {/* Immersive CTA & WCT Finale - Combined */}
+          <section className="relative min-h-[900px] flex flex-col items-center justify-center py-32 overflow-hidden">
+
+            {/* 1. PRODUCT CTA (Top) */}
+            <div className="container mx-auto px-6 text-center relative z-10 mb-32">
+              <motion.div
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="max-w-4xl mx-auto"
+              >
+                <div className="text-cyan-500 font-black text-[9px] uppercase tracking-[0.5em] mb-8">Final Step</div>
+                <h2 className="text-5xl md:text-7xl font-black text-white leading-[0.85] tracking-tighter mb-12">
+                  READY TO SCALE <br />
+                  <span className="font-serif-italic font-normal lowercase italic text-white/20">collective intel?</span>
+                </h2>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="bg-white text-black px-12 py-6 rounded-2xl font-black text-xl uppercase tracking-tight hover:bg-cyan-50 transition-all shadow-3xl flex items-center gap-3"
+                  >
+                    Join AlignIQ
+                    <ArrowRight size={20} />
+                  </motion.button>
+                  <Link href="#pricing" className="text-white/30 hover:text-white transition-all text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-2 group">
+                    View Pricing Models
+                    <div className="w-6 h-[1px] bg-white/10 group-hover:w-12 transition-all" />
+                  </Link>
+                </div>
               </motion.div>
             </div>
 
-            {/* Bottom Left: Analytics Widget */}
-            <motion.div
-              className="absolute bottom-8 left-4 sm:bottom-16 sm:left-12 w-64 sm:w-80 hidden lg:block"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.5 }}
-              style={{
-                animation: 'float 6.5s ease-in-out infinite 1.5s'
-              }}
-            >
-              <div className="rounded-2xl bg-white p-6 shadow-2xl shadow-slate-900/10">
-                <div className="mb-4 text-sm font-semibold text-slate-900">Meeting Analytics</div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Action Items</span>
-                    <span className="text-2xl font-bold text-blue-600">12</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Participants</span>
-                    <span className="text-2xl font-bold text-cyan-600">8</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Duration</span>
-                    <span className="text-2xl font-bold text-purple-600">45m</span>
-                  </div>
-                </div>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full w-3/4 bg-gradient-to-r from-blue-500 to-cyan-500" />
-                </div>
-              </div>
-            </motion.div>
+            {/* Visual Connector - Fading Line */}
+            <div className="w-px h-32 bg-gradient-to-b from-transparent via-white/10 to-transparent relative z-10 mb-20" />
 
-            {/* Bottom Right: Integrations */}
-            <motion.div
-              className="absolute bottom-12 right-4 sm:bottom-20 sm:right-16 hidden xl:block"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              style={{
-                animation: 'float 5.5s ease-in-out infinite 2s'
-              }}
-            >
-              <div className="rounded-2xl bg-white p-6 shadow-2xl shadow-slate-900/15">
-                <div className="mb-3 text-sm font-semibold text-slate-900">6 Thinking Hats Analysis</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col items-center p-2 rounded-xl bg-slate-50">
-                    <div className="h-2 w-8 rounded-full bg-blue-500 mb-2" />
-                    <span className="text-[10px] text-slate-500 font-medium">Process</span>
-                  </div>
-                  <div className="flex flex-col items-center p-2 rounded-xl bg-slate-50">
-                    <div className="h-2 w-8 rounded-full bg-white border border-slate-300 mb-2" />
-                    <span className="text-[10px] text-slate-500 font-medium">Facts</span>
-                  </div>
-                  <div className="flex flex-col items-center p-2 rounded-xl bg-slate-50">
-                    <div className="h-2 w-8 rounded-full bg-red-500 mb-2" />
-                    <span className="text-[10px] text-slate-500 font-medium">Emotions</span>
-                  </div>
-                  <div className="flex flex-col items-center p-2 rounded-xl bg-slate-50">
-                    <div className="h-2 w-8 rounded-full bg-green-500 mb-2" />
-                    <span className="text-[10px] text-slate-500 font-medium">Creativity</span>
-                  </div>
+            {/* 2. WCT TRUST SIGNAL (Bottom - Large & Open) */}
+            <div className="container mx-auto px-6 relative z-10 text-center">
+              <motion.div
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true }}
+                className="flex flex-col items-center gap-8"
+              >
+                <div className="relative group cursor-default">
+                  <div className="absolute inset-0 bg-cyan-500/20 blur-[50px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                  <Image
+                    src="/WCT_logo.png"
+                    alt="WCT Logo"
+                    width={120}
+                    height={120}
+                    className="w-24 h-auto md:w-32 object-contain relative z-10 drop-shadow-2xl"
+                  />
                 </div>
-              </div>
-            </motion.div>
-          </div>
-        </motion.section>
-      )}
-    </motion.main>
+
+                <div className="max-w-xl mx-auto space-y-4">
+                  <p className="text-2xl font-bold text-white tracking-tight">
+                    Impact Intelligence Suite
+                  </p>
+                  <p className="text-white/40 text-sm font-light leading-relaxed">
+                    WCT offers a suite of productivity tools and frameworks that help improve individual and team meta-cognition. Discover our distinct <span className="text-white/60 italic">"way we think about things."</span>
+                  </p>
+                </div>
+
+                <Link href="https://www.waferwire.com/" target="_blank" className="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hover:text-cyan-400 transition-colors mt-4">
+                  Explore WaferWire
+                  <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </motion.div>
+            </div>
+
+            {/* Epic Background Elements */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] opacity-[0.05] pointer-events-none" style={{
+              backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+              backgroundSize: '32px 32px'
+            }} />
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-[800px] bg-gradient-to-t from-cyan-900/10 via-transparent to-transparent pointer-events-none" />
+          </section>
+        </ZoomWrapper>
+      </main>
+
+      <ZoomWrapper>
+        <Footer />
+      </ZoomWrapper>
+    </div>
   );
 }
