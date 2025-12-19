@@ -48,7 +48,7 @@ export default function Home() {
   }, [supabase.auth]);
 
   return (
-    <div className="relative bg-background selection:bg-cyan-500/30 overflow-x-hidden">
+    <div className="landing-theme relative bg-background selection:bg-cyan-500/30 overflow-x-hidden">
       {/* Cinematic Noise Overlay */}
       <div className="noise-overlay fixed inset-0 z-[999] pointer-events-none" />
 
