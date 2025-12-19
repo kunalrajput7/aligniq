@@ -163,26 +163,30 @@ Return JSON:
 
 Your narrative_summary MUST have EXACTLY these 6 sections IN THIS ORDER:
 
-1. **Executive Overview**
+1. ## Meeting Tone  ← DO NOT SKIP THIS
+   1-2 paragraphs describing atmosphere based on the tone data provided above.
+
+2. ## Executive Overview
    3-4 sentences: meeting purpose, attendees, main outcomes.
 
-2. **Key Takeaways**
+3. ## Key Takeaways
    - 4-6 bullet points of most important insights
 
-3. **Discussion Topics**
-   ## [Topic Title from chapters]
+4. ## Discussion Topics
+   ### [Topic Title from chapters]
    Brief description of what was discussed.
    (Create section for each chapter listed above)
 
-4. **Meeting Tone**  ← DO NOT SKIP THIS
-   1-2 paragraphs describing atmosphere based on the tone data provided above.
-
-5. **Aligned Thinking**  ← DO NOT SKIP THIS
+5. ## Aligned Thinking  ← DO NOT SKIP THIS
    Rewrite the agreements from the AGREEMENTS section above as prose bullet points.
    If no agreements were identified, write "No major consensus points were explicitly noted."
 
-6. **Divergent Perspectives**  ← DO NOT SKIP THIS
+6. ## Divergent Perspectives  ← DO NOT SKIP THIS
    Rewrite disagreements showing each person's view and resolution.
+   FORMAT: Use bold for the specific topic.
+   Example:
+   - **Feature priority**: Alice wanted mobile, Bob wanted API. Resolution: Parallel tracks.
+   
    If no disagreements were identified, write "No significant disagreements were observed."
 
 WARNING: Your output is INCOMPLETE if it does not contain all 6 sections!
@@ -240,37 +244,27 @@ Return ONLY valid JSON."""
 
 
 def _fix_markdown_headers(text: str) -> str:
-    """Fix markdown headers to use **bold** format and remove timestamps."""
+    """Fix markdown headers and remove timestamps."""
     if not text:
         return ""
     
     # Remove timestamp patterns
     text = re.sub(r'\(\d{2}:\d{2}:\d{2}(?:–\d{2}:\d{2}:\d{2})?\)', '', text)
-    
-    # Convert ## headers to **bold** (except for discussion topic subheaders)
-    lines = text.split('\n')
-    result_lines = []
-    in_discussion = False
-    
-    for line in lines:
-        stripped = line.strip()
-        
-        # Track if we're in Discussion Topics section
-        if '**Discussion Topics**' in stripped or '## Discussion Topics' in stripped:
-            in_discussion = True
-        elif stripped.startswith('**') and stripped.endswith('**'):
-            in_discussion = False
-        
-        # Keep ## subheaders within Discussion Topics
-        if stripped.startswith('## ') and not in_discussion:
-            header_text = stripped[3:]
-            result_lines.append(f"**{header_text}**")
-        else:
-            result_lines.append(line)
-    
-    # Remove stray Decisions Made or Action Items sections
-    text = '\n'.join(result_lines)
-    text = re.sub(r'\n\*\*(?:\d+\.\s*)?(?:Decisions Made|Action Items)\*\*[\s\S]*?(?=\n\*\*|$)', '', text, flags=re.IGNORECASE)
+
+    # 1. Promote "**Section Name**" to "## Section Name" for main sections
+    # This prevents validation from failing if LLM uses bold instead of H2
+    sections_to_fix = [
+        "Meeting Tone", "Executive Overview", "Key Takeaways", 
+        "Discussion Topics", "Aligned Thinking", "Divergent Perspectives"
+    ]
+    for section in sections_to_fix:
+        # Replace **Section** or just Section (on its own line) with ## Section
+        # Case insensitive match, but preserve Proper Case in replacement
+        pattern = re.compile(r'^\s*(?:\*\*|##)?\s*' + re.escape(section) + r'(?:\*\*)?\s*$', re.MULTILINE | re.IGNORECASE)
+        text = pattern.sub(f'## {section}', text)
+
+    # Remove stray Decisions Made or Action Items sections (Legacy cleanup)
+    text = re.sub(r'\n(?:\*\*|##)?\s*(?:\d+\.\s*)?(?:Decisions Made|Action Items)(?:\*\*|)?[\s\S]*?(?=\n(?:##|\*\*)|$)', '', text, flags=re.IGNORECASE)
     
     return text.strip()
 
@@ -279,10 +273,10 @@ def _normalize_synthesis(result: Dict[str, Any], original_chapters: List[Dict[st
     """Normalize and validate synthesis output. Ensures all 6 sections exist."""
     
     REQUIRED_SECTIONS = [
+        "Meeting Tone",
         "Executive Overview",
         "Key Takeaways",
         "Discussion Topics",
-        "Meeting Tone",
         "Aligned Thinking",
         "Divergent Perspectives"
     ]
@@ -294,7 +288,8 @@ def _normalize_synthesis(result: Dict[str, Any], original_chapters: List[Dict[st
     # Check for missing sections
     missing_sections = []
     for section in REQUIRED_SECTIONS:
-        patterns = [f"**{section}**", f"## {section}", section]
+        # Check for ## Header
+        patterns = [f"## {section}", f"# {section}"]
         found = any(p.lower() in narrative_summary.lower() for p in patterns)
         if not found:
             missing_sections.append(section)
@@ -304,9 +299,9 @@ def _normalize_synthesis(result: Dict[str, Any], original_chapters: List[Dict[st
         print(f"[STAGE 3] WARNING: Missing sections: {missing_sections}")
         for section in missing_sections:
             if section == "Executive Overview":
-                narrative_summary = f"**Executive Overview**\n\nThis meeting covered key topics.\n\n" + narrative_summary
+                narrative_summary = f"## Executive Overview\n\nThis meeting covered key topics.\n\n" + narrative_summary
             else:
-                narrative_summary += f"\n\n**{section}**\n\n_Section content not available._"
+                narrative_summary += f"\n\n## {section}\n\n_Section content not available._"
 
     # Merge chapter summaries
     chapter_summaries = result.get("chapters", [])

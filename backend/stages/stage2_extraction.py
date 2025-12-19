@@ -62,7 +62,8 @@ Critical rules:
 - Extract evidence as exact quotes with speaker names (no timestamps)
 - Better to over-extract than miss important items
 - Be specific and actionable in descriptions
-- Assign priority levels based on urgency cues"""
+- Assign priority levels based on urgency cues
+- OUTPUT ONLY VALID JSON. No markdown, no preambles."""
 
     user_prompt = f"""Analyze this meeting transcript and extract all actionable content and group dynamics.
 
@@ -225,7 +226,23 @@ Return ONLY valid JSON."""
 
     except json.JSONDecodeError as e:
         print(f"[STAGE 2] JSON decode error: {e}")
-        print(f"[STAGE 2] Response text: {response_text[:500]}")
+        # Try to repair/extract JSON
+        try:
+            import re
+            # Extract content between first { and last }
+            match = re.search(r'(\{.*\})', response_text, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+                result = json.loads(json_str)
+                result = _normalize_extraction(result)
+                
+                elapsed_time = time.time() - start_time
+                print(f"[STAGE 2] ✓ Recovered JSON from text in {elapsed_time:.2f}s")
+                return result
+        except Exception as repair_err:
+            print(f"[STAGE 2] JSON repair failed: {repair_err}")
+
+        print(f"[STAGE 2] Response text start: {response_text[:500]}")
         return _empty_extraction()
     except Exception as e:
         print(f"[STAGE 2] Error: {e}")
