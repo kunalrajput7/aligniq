@@ -210,6 +210,21 @@ export default function Home() {
           {/* Immersive CTA & WCT Finale - Combined */}
           <section className="relative min-h-[900px] flex flex-col items-center justify-center py-32 overflow-hidden">
 
+            {/* Video Background */}
+            <div className="absolute inset-0 z-0 select-none pointer-events-none">
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover opacity-40"
+              >
+                <source src="/background2.mp4" type="video/mp4" />
+              </video>
+              {/* Dark Overlay */}
+              <div className="absolute inset-0 bg-black/60 z-10" />
+            </div>
+
             {/* 1. PRODUCT CTA (Top) */}
             <div className="container mx-auto px-6 text-center relative z-10 mb-32">
               <motion.div

@@ -36,8 +36,23 @@ export function HeroSection({ onSignInClick }: HeroSectionProps) {
             {/* Noise Overlay for texture */}
             <div className="noise-overlay" />
 
-            {/* Moving Glow Orbs */}
-            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden animate-nebulous">
+            {/* Video Background */}
+            <div className="absolute inset-0 z-0">
+                <video
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                >
+                    <source src="/background.mp4" type="video/mp4" />
+                </video>
+                {/* Dark Overlay for contrast */}
+                <div className="absolute inset-0 bg-black/60 z-10" />
+            </div>
+
+            {/* Moving Glow Orbs (Optional: Keep or remove depending on preference, putting behind overlay) */}
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden animate-nebulous opacity-50">
                 <div className="absolute top-[10%] left-[20%] w-[40%] h-[40%] rounded-full opacity-[0.08] blur-[120px] bg-cyan-400" />
                 <div className="absolute bottom-[20%] right-[10%] w-[50%] h-[50%] rounded-full opacity-[0.05] blur-[120px] bg-purple-600" />
             </div>
