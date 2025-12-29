@@ -21,6 +21,7 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose, message = "Sign in to your account" }: AuthModalProps) {
     const supabase = createClient()
+    const [origin, setOrigin] = useState('')
     const [view, setView] = useState<'login' | 'forgot_password'>('login')
     const [resetEmail, setResetEmail] = useState('')
     const [resetLoading, setResetLoading] = useState(false)
