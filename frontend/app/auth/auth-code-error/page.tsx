@@ -8,13 +8,18 @@ export default function AuthCodeError() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const error = searchParams.get('error')
+    const description = searchParams.get('description')
 
     const errorMessages: Record<string, string> = {
-        'verification_failed': 'The authentication link has expired or is invalid. This often happens if the link has already been used or if it has timed out.',
+        'otp_expired': 'The verification link has expired. This can happen if the link was already used or if it has been more than an hour since it was requested.',
+        'access_denied': 'Access was denied. This might be due to security settings or an invalid verification attempt.',
+        'verification_failed': 'The authentication link is invalid. Please make sure you are using the most recent link sent to your email.',
+        'no_verification_data': 'No verification data was found. Please try requesting a new link from the login page.',
         'default': 'Something went wrong during the authentication process. Please try again or request a new link.'
     }
 
     const message = errorMessages[error as string] || errorMessages.default
+    const displayDescription = description ? decodeURIComponent(description) : null
 
     return (
         <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-black selection:bg-cyan-500/30 overflow-hidden relative">
@@ -43,9 +48,14 @@ export default function AuthCodeError() {
                         <h1 className="text-4xl font-black text-white text-center tracking-tighter uppercase mb-4">
                             Auth Error
                         </h1>
-                        <p className="text-white/60 text-center font-light text-sm mb-10 leading-relaxed">
+                        <p className="text-white/60 text-center font-light text-sm mb-4 leading-relaxed">
                             {message}
                         </p>
+                        {displayDescription && (
+                            <p className="text-white/30 text-center font-mono text-[10px] mb-10 break-all p-3 bg-white/5 rounded-xl">
+                                {displayDescription}
+                            </p>
+                        )}
 
                         <div className="space-y-4">
                             <motion.button
