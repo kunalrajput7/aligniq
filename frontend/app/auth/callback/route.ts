@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const code = searchParams.get('code')
     const token_hash = searchParams.get('token_hash')
     const type = searchParams.get('type') as EmailOtpType | null
-    const next = searchParams.get('next') ?? '/dashboard'
+    const next = searchParams.get('next')
 
     // Check for errors from Supabase
     const error = searchParams.get('error')
@@ -20,13 +20,16 @@ export async function GET(request: Request) {
 
     const supabase = createClient()
 
+    // Determine the redirect path
+    let redirectTo = next || '/dashboard'
+    if (type === 'recovery' || next === '/reset-password') {
+        redirectTo = '/reset-password'
+    }
+
     if (code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
         if (!exchangeError) {
-            if (type === 'recovery') {
-                return NextResponse.redirect(`${origin}/reset-password`)
-            }
-            return NextResponse.redirect(`${origin}${next}`)
+            return NextResponse.redirect(`${origin}${redirectTo}`)
         }
         return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${exchangeError.name}&description=${encodeURIComponent(exchangeError.message)}`)
     }
@@ -34,10 +37,7 @@ export async function GET(request: Request) {
     if (token_hash && type) {
         const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash, type })
         if (!verifyError) {
-            if (type === 'recovery') {
-                return NextResponse.redirect(`${origin}/reset-password`)
-            }
-            return NextResponse.redirect(`${origin}${next}`)
+            return NextResponse.redirect(`${origin}${redirectTo}`)
         }
         return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${verifyError.name}&description=${encodeURIComponent(verifyError.message)}`)
     }
