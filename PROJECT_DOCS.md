@@ -35,9 +35,11 @@
 - **Meeting Tone Analysis** (collaborative/tense/productive)
 - **Aligned vs Divergent Thinking** - where team agreed vs differed
 - **Chapter Breakdowns** with topic-specific summaries
-- **Interactive Mindmaps** with expand/collapse
-- **Real-time Notifications** when processing completes
-- **PDF Export** with complete meeting data
+- **Interactive Mindmaps** with expand/collapse, auto-layout, and color-coded nodes
+- **Real-time Notifications** via Supabase subscriptions (Toast alerts for success/failure)
+- **Project Collaboration** - Invite members, shared workspaces, and team visibility
+- **Activity Feed** with smart relative time ("Just now") and live updates
+- **PDF Export** with complete meeting data including mindmap structure
 
 ### The 6-Section Summary Format
 ```markdown
@@ -68,7 +70,7 @@
 │                                                                      │
 │  ProcessingNotifications - Real-time toast when meetings complete   │
 └───────────────────────────┬─────────────────────────────────────────┘
-                            │ HTTP (REST API) + Supabase Realtime
+                            │ HTTP (REST API) + Supabase Realtime (Channels: meetings, project_collaborators)
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       BACKEND (Azure App Service)                    │
@@ -324,20 +326,21 @@ frontend/
 - **Main container** for meeting analysis view
 - Tabs: Overview | Chapters | Mindmap
 - Renders narrative summary using ReactMarkdown with remark-gfm
-- Prose typography for clean markdown rendering
+- Uses `prose` typography for clean markdown rendering
+- **Real-time Status**: Listens for 'completed' status to auto-refresh data
 
 #### `ProcessingNotifications.tsx` (NEW)
 - **Supabase real-time subscriptions** for meeting status updates
+- **Channel**: `postgres_changes` on `meetings` table (filter: `user_id=eq.current_user`)
 - Toast notifications when meetings complete/fail
-- Green toast for completed, red for failed
-- Auto-dismiss after 10 seconds with progress bar
-- Framer Motion animations
-- Links to view completed meetings
+- Green/Red gradient styling with spring animations
+- Auto-dismiss after 10 seconds (or manual dismiss)
+- Links directly to the completed meeting detail page
 
 #### `dashboard/layout.tsx` (NEW)
 - Wraps all `/dashboard/*` routes
 - Includes `<ProcessingNotifications />` globally
-- Ensures notifications appear on any dashboard page
+- Ensures notifications appear on any dashboard page regardless of current view
 
 #### `lib/api.ts` - Upload Handling
 - **30-second timeout** with AbortController
@@ -347,21 +350,31 @@ frontend/
 
 #### `UploadModal.tsx`
 - Drag-and-drop VTT file upload
-- Project selection dropdown
+- **Smart Context**: Automatically selects current project if uploaded from Project Detail page
+- **Skip Logic**: Skips "Select Project" step if project_id is pre-filled
 - Immediate transition to "complete" step after upload
 - Message: "Your meeting is being processed. Check the Meetings section to see when it's ready."
 
 #### `MindmapCanvas.tsx`
 - **ReactFlow** for interactive graph
-- **ELK.js** for automatic layout
-- Dynamic node sizing based on text length
-- Expand/collapse functionality
-- Spring animations on nodes
+- **ELK.js** for automatic layered layout (Direction: RIGHT)
+- **Dynamic Sizing**: Calculates node width/height based on text length
+- **Animations**: Framer Motion spring animations on node appearance
+- **Palette**: Color-coded by node type (Root: Indigo, Chapter: Gray, Action: Blue, Blocker: Red)
 
 #### `ActivityFeed.tsx`
 - Fetches meetings from **past 3 days**
-- Shows: title, participants, task count, mindmap status
-- Full date/time display (not relative)
+- **Smart Time**: "Just now", "5m ago", "Today at 2:00 PM", "Yesterday"
+- **Live Updates**: Real-time subscription to `meetings` and `project_collaborators`
+- **Collaboration Events**: Shows "Invited to Project X" and "Shared Project Y"
+- **Visuals**: Distinct icons for Video (Meeting) vs Share (Collaboration)
+
+#### `projects/page.tsx` & Note Cards
+- **Project Cards**: Grid view with status badges (In Progress/Active)
+- **Collaboration Badge**: "Shared" badge if multiple members exist
+- **Summer AI Insight**: Yellow note block showing meeting count impact
+- **Sorting**: Most recent activity first (based on latest meeting or creation)
+
 
 ---
 
@@ -545,6 +558,7 @@ Health check endpoint.
 AZURE_AI_ENDPOINT=https://your-endpoint.cognitiveservices.azure.com
 AZURE_AI_KEY=your-api-key
 AZURE_AI_DEPLOYMENT=gpt-5-nano
+AZURE_AI_API_VERSION=2024-05-01-preview
 
 # Supabase (Required) - MUST be set in Azure App Service
 SUPABASE_URL=https://your-project.supabase.co
@@ -573,11 +587,12 @@ NEXT_PUBLIC_API_URL=http://localhost:8000  # Or Azure backend URL
 
 ### Azure App Service Configuration
 These must be set in Azure Portal → App Service → Configuration:
-- `SUPABASE_URL`
-- `SUPABASE_KEY`
 - `AZURE_AI_ENDPOINT`
 - `AZURE_AI_KEY`
 - `AZURE_AI_DEPLOYMENT`
+- `AZURE_AI_API_VERSION` (Optional, defaults to 2024-05-01-preview)
+- `SUPABASE_URL`
+- `SUPABASE_KEY`
 
 ---
 
@@ -659,6 +674,14 @@ allowed_origins = [
 | Stage 3 timeout | Large meetings | Retry logic handles (3 attempts with backoff) |
 | "Processing..." stuck | Pipeline error | Check backend logs for stage failures |
 | No real-time notifications | Missing layout | Ensure dashboard/layout.tsx includes ProcessingNotifications |
+| 500 Error on Upload | Azure AI Config | Check `AZURE_AI_KEY` and `AZURE_AI_ENDPOINT` in App Service |
+| Deployment Fails | GitHub Secrets | Verify `AZURE_WEBAPP_PUBLISH_PROFILE` is the exact XML content |
+
+### Cost Estimates
+- **Azure App Service**: ~$13/mo (B1) or ~$55/mo (S1)
+- **Azure AI Foundry**: Pay-per-use (~$0.50 - $2.00 per meeting)
+- **Vercel**: Free (Hobby) or $20/mo (Pro)
+- **Supabase**: Free tier available (sufficient for dev)
 
 ---
 
