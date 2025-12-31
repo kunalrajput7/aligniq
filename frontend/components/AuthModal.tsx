@@ -22,7 +22,7 @@ interface AuthModalProps {
 export function AuthModal({ isOpen, onClose, message = "Sign in to your account" }: AuthModalProps) {
     const supabase = createClient()
     const [origin, setOrigin] = useState('')
-    const [view, setView] = useState<'login' | 'forgot_password'>('login')
+    const [view, setView] = useState<'login' | 'forgot_password' | 'sign_up'>('login')
     const [resetEmail, setResetEmail] = useState('')
     const [resetLoading, setResetLoading] = useState(false)
     const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
@@ -84,57 +84,15 @@ export function AuthModal({ isOpen, onClose, message = "Sign in to your account"
 
                 <DialogHeader className="relative z-10">
                     <DialogTitle className="text-3xl font-black tracking-tighter uppercase text-white mb-2">
-                        {view === 'login' ? message : 'Reset Password'}
+                        {view === 'sign_up' ? 'Create Account' : (view === 'login' ? message : 'Reset Password')}
                     </DialogTitle>
                     <DialogDescription className="text-white/40 font-light">
-                        {view === 'login' ? 'Unlock high-performance meeting intelligence.' : 'Enter your email to receive instructions.'}
+                        {view === 'forgot_password' ? 'Enter your email to receive instructions.' : 'Unlock high-performance meeting intelligence.'}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex flex-col space-y-4 py-4 relative z-10">
-                    {view === 'login' ? (
-                        <>
-                            <div className="relative">
-                                <Auth
-                                    supabaseClient={supabase}
-                                    appearance={{
-                                        theme: ThemeSupa,
-                                        variables: {
-                                            default: {
-                                                colors: {
-                                                    brand: '#06b6d4',
-                                                    brandAccent: '#22d3ee',
-                                                    inputBackground: 'rgba(255, 255, 255, 0.05)',
-                                                    inputText: '#fff',
-                                                    inputBorder: 'rgba(255, 255, 255, 0.1)',
-                                                    inputPlaceholder: 'rgba(255, 255, 255, 0.3)',
-                                                }
-                                            }
-                                        },
-                                        style: {
-                                            anchor: { display: 'none' }, // Hide default links
-                                            input: { borderRadius: '0.75rem', padding: '1rem' },
-                                            button: { borderRadius: '0.75rem', padding: '1rem', fontWeight: 'bold', textTransform: 'uppercase' },
-                                        }
-                                    }}
-                                    theme="dark"
-                                    providers={[]}
-                                    redirectTo={`${origin}/auth/callback`}
-                                    showLinks={false}
-                                    onlyThirdPartyProviders={false}
-                                />
-
-                                <div className="flex flex-col gap-2 mt-4 text-center text-sm">
-                                    <button
-                                        onClick={() => setView('forgot_password')}
-                                        className="text-white/40 hover:text-white transition-colors text-xs font-medium"
-                                    >
-                                        Forgot your password?
-                                    </button>
-                                </div>
-                            </div>
-                        </>
-                    ) : (
+                    {view === 'forgot_password' ? (
                         <div className="space-y-6">
                             <form onSubmit={handleResetPassword} className="space-y-4">
                                 <div>
@@ -176,6 +134,73 @@ export function AuthModal({ isOpen, onClose, message = "Sign in to your account"
                                 </button>
                             </form>
                         </div>
+                    ) : (
+                        <>
+                            <div className="relative">
+                                <Auth
+                                    supabaseClient={supabase}
+                                    view={view === 'sign_up' ? 'sign_up' : 'sign_in'}
+                                    appearance={{
+                                        theme: ThemeSupa,
+                                        variables: {
+                                            default: {
+                                                colors: {
+                                                    brand: '#06b6d4',
+                                                    brandAccent: '#22d3ee',
+                                                    inputBackground: 'rgba(255, 255, 255, 0.05)',
+                                                    inputText: '#fff',
+                                                    inputBorder: 'rgba(255, 255, 255, 0.1)',
+                                                    inputPlaceholder: 'rgba(255, 255, 255, 0.3)',
+                                                }
+                                            }
+                                        },
+                                        style: {
+                                            anchor: { display: 'none' }, // Hide default links
+                                            input: { borderRadius: '0.75rem', padding: '1rem' },
+                                            button: { borderRadius: '0.75rem', padding: '1rem', fontWeight: 'bold', textTransform: 'uppercase' },
+                                        }
+                                    }}
+                                    theme="dark"
+                                    providers={[]}
+                                    redirectTo={`${origin}/auth/callback`}
+                                    showLinks={false}
+                                    onlyThirdPartyProviders={false}
+                                />
+
+                                <div className="flex flex-col gap-2 mt-4 text-center text-sm">
+                                    {view === 'login' && (
+                                        <>
+                                            <button
+                                                onClick={() => setView('forgot_password')}
+                                                className="text-white/40 hover:text-white transition-colors text-xs font-medium"
+                                            >
+                                                Forgot your password?
+                                            </button>
+                                            <div className="text-white/40 text-xs mt-2">
+                                                Don't have an account?{' '}
+                                                <button
+                                                    onClick={() => setView('sign_up')}
+                                                    className="text-cyan-400 hover:text-cyan-300 transition-colors font-semibold"
+                                                >
+                                                    Sign Up
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                    {view === 'sign_up' && (
+                                        <div className="text-white/40 text-xs">
+                                            Already have an account?{' '}
+                                            <button
+                                                onClick={() => setView('login')}
+                                                className="text-cyan-400 hover:text-cyan-300 transition-colors font-semibold"
+                                            >
+                                                Sign In
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
                     )}
                 </div>
             </DialogContent>

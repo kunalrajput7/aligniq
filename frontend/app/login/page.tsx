@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 export default function Login() {
     const supabase = createClient()
     const [origin, setOrigin] = useState('')
-    const [view, setView] = useState<'login' | 'forgot_password'>('login')
+    const [view, setView] = useState<'login' | 'forgot_password' | 'sign_up'>('login')
     const [resetEmail, setResetEmail] = useState('')
     const [resetLoading, setResetLoading] = useState(false)
     const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
@@ -47,37 +47,7 @@ export default function Login() {
     return (
         <div className="flex min-h-screen flex-col items-center justify-center py-2 bg-gray-50 dark:bg-gray-900">
             <div className="w-full max-w-md px-8 py-10 bg-white rounded-lg shadow-md dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                {view === 'login' ? (
-                    <>
-                        <h1 className="mb-6 text-3xl font-bold text-center text-gray-900 dark:text-white">Welcome Back</h1>
-                        <div className="relative">
-                            <Auth
-                                supabaseClient={supabase}
-                                appearance={{
-                                    theme: ThemeSupa,
-                                    style: {
-                                        anchor: { display: 'none' }, // Hide default links to avoid confusion
-                                        container: { width: '100%' },
-                                    },
-                                }}
-                                theme="dark"
-                                providers={[]}
-                                redirectTo={`${origin}/auth/callback`}
-                                showLinks={false} // Hide default footer links
-                            />
-
-                            {/* Custom Footer Links */}
-                            <div className="flex flex-col gap-2 mt-4 text-center text-sm">
-                                <button
-                                    onClick={() => setView('forgot_password')}
-                                    className="text-gray-500 hover:text-gray-300 transition-colors"
-                                >
-                                    Forgot your password?
-                                </button>
-                            </div>
-                        </div>
-                    </>
-                ) : (
+                {view === 'forgot_password' ? (
                     <div className="space-y-6">
                         <div className="text-center">
                             <h1 className="text-2xl font-bold text-white mb-2">Reset Password</h1>
@@ -120,6 +90,63 @@ export default function Login() {
                             </button>
                         </form>
                     </div>
+                ) : (
+                    <>
+                        <h1 className="mb-6 text-3xl font-bold text-center text-gray-900 dark:text-white">
+                            {view === 'sign_up' ? 'Create Account' : 'Welcome Back'}
+                        </h1>
+                        <div className="relative">
+                            <Auth
+                                supabaseClient={supabase}
+                                view={view === 'sign_up' ? 'sign_up' : 'sign_in'}
+                                appearance={{
+                                    theme: ThemeSupa,
+                                    style: {
+                                        anchor: { display: 'none' }, // Hide default links to avoid confusion
+                                        container: { width: '100%' },
+                                    },
+                                }}
+                                theme="dark"
+                                providers={[]}
+                                redirectTo={`${origin}/auth/callback`}
+                                showLinks={false} // Hide default footer links
+                            />
+
+                            {/* Custom Footer Links */}
+                            <div className="flex flex-col gap-2 mt-4 text-center text-sm">
+                                {view === 'login' && (
+                                    <>
+                                        <button
+                                            onClick={() => setView('forgot_password')}
+                                            className="text-gray-500 hover:text-gray-300 transition-colors"
+                                        >
+                                            Forgot your password?
+                                        </button>
+                                        <div className="text-gray-500">
+                                            Don't have an account?{' '}
+                                            <button
+                                                onClick={() => setView('sign_up')}
+                                                className="text-cyan-500 hover:text-cyan-400 font-semibold transition-colors"
+                                            >
+                                                Sign Up
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                                {view === 'sign_up' && (
+                                    <div className="text-gray-500">
+                                        Already have an account?{' '}
+                                        <button
+                                            onClick={() => setView('login')}
+                                            className="text-cyan-500 hover:text-cyan-400 font-semibold transition-colors"
+                                        >
+                                            Sign In
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
         </div>
