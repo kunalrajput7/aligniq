@@ -182,7 +182,7 @@ export default function MeetingDetailPage() {
         };
     };
 
-    // Comprehensive PDF Export
+    // ============ PROFESSIONAL PDF EXPORT ============
     const handleDownloadPdf = () => {
         if (!meeting || !summary) return;
 
@@ -193,185 +193,440 @@ export default function MeetingDetailPage() {
         const contentWidth = pageWidth - (margin * 2);
         let yPos = 20;
 
-        const addNewPageIfNeeded = (requiredHeight: number = 30) => {
-            if (yPos + requiredHeight > pageHeight - 20) {
+        // Color palette for professional look
+        const colors = {
+            primary: [30, 64, 175] as [number, number, number],      // Deep blue
+            secondary: [71, 85, 105] as [number, number, number],    // Slate gray
+            accent: [16, 185, 129] as [number, number, number],      // Emerald
+            text: [30, 41, 59] as [number, number, number],          // Dark slate
+            muted: [100, 116, 139] as [number, number, number],      // Gray
+            light: [241, 245, 249] as [number, number, number],      // Light bg
+            white: [255, 255, 255] as [number, number, number],
+            warning: [245, 158, 11] as [number, number, number],     // Amber
+            danger: [239, 68, 68] as [number, number, number],       // Red
+        };
+
+        // Hat colors for visual distinction
+        const hatColors: Record<string, [number, number, number]> = {
+            white: [148, 163, 184],
+            red: [239, 68, 68],
+            black: [30, 41, 59],
+            yellow: [234, 179, 8],
+            green: [34, 197, 94],
+            blue: [59, 130, 246],
+        };
+
+        // ============ HELPER FUNCTIONS ============
+        const addNewPageIfNeeded = (requiredHeight: number = 30): boolean => {
+            if (yPos + requiredHeight > pageHeight - 25) {
                 doc.addPage();
-                yPos = 20;
+                yPos = 25;
                 return true;
             }
             return false;
         };
 
-        const addSectionHeader = (title: string) => {
-            addNewPageIfNeeded(25);
-            doc.setFontSize(14);
+        const drawSectionHeader = (title: string, icon?: string) => {
+            addNewPageIfNeeded(30);
+
+            // Section background bar
+            doc.setFillColor(...colors.primary);
+            doc.rect(margin, yPos - 5, contentWidth, 12, 'F');
+
+            // Section title
+            doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
-            doc.setTextColor(30, 64, 175); // Blue color
-            doc.text(title, margin, yPos);
-            yPos += 3;
-            doc.setDrawColor(30, 64, 175);
-            doc.setLineWidth(0.5);
-            doc.line(margin, yPos, pageWidth - margin, yPos);
-            yPos += 8;
-            doc.setTextColor(0, 0, 0);
+            doc.setTextColor(...colors.white);
+            doc.text(title.toUpperCase(), margin + 5, yPos + 3);
+
+            yPos += 15;
+            doc.setTextColor(...colors.text);
             doc.setFont('helvetica', 'normal');
         };
 
-        const addParagraph = (text: string, fontSize: number = 10) => {
+        const drawSubsectionHeader = (title: string) => {
+            addNewPageIfNeeded(20);
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...colors.secondary);
+            doc.text(title, margin, yPos);
+            yPos += 2;
+            doc.setDrawColor(...colors.secondary);
+            doc.setLineWidth(0.3);
+            doc.line(margin, yPos, margin + doc.getTextWidth(title), yPos);
+            yPos += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...colors.text);
+        };
+
+        const addParagraph = (text: string, fontSize: number = 10, indent: number = 0) => {
             if (!text) return;
             doc.setFontSize(fontSize);
             doc.setFont('helvetica', 'normal');
-            // Clean markdown formatting for PDF
+
+            // Clean markdown formatting
             const cleanText = text
+                .replace(/\\r\\n|\\n/g, '\n')
+                .replace(/\r\n|\r/g, '\n')
                 .replace(/\*\*(.*?)\*\*/g, '$1')
                 .replace(/\*(.*?)\*/g, '$1')
                 .replace(/#{1,6}\s+/g, '')
                 .replace(/^[-*]\s+/gm, '• ')
                 .replace(/^\d+\.\s+/gm, '• ');
 
-            const lines = doc.splitTextToSize(cleanText, contentWidth);
-            lines.forEach((line: string) => {
-                addNewPageIfNeeded(7);
-                doc.text(line, margin, yPos);
-                yPos += 5;
+            const paragraphs = cleanText.split('\n\n');
+            paragraphs.forEach((para, pIdx) => {
+                if (!para.trim()) return;
+
+                const lines = doc.splitTextToSize(para.trim(), contentWidth - indent);
+                lines.forEach((line: string) => {
+                    addNewPageIfNeeded(6);
+                    doc.text(line, margin + indent, yPos);
+                    yPos += 5;
+                });
+                if (pIdx < paragraphs.length - 1) yPos += 3;
             });
-            yPos += 3;
+            yPos += 4;
         };
 
-        const addBulletPoint = (text: string, indent: number = 0) => {
+        const addBulletItem = (text: string, indent: number = 0, bulletChar: string = '•') => {
             if (!text) return;
             doc.setFontSize(10);
             const bulletX = margin + indent;
-            const textX = bulletX + 5;
-            const availableWidth = contentWidth - indent - 5;
+            const textX = bulletX + 6;
+            const availableWidth = contentWidth - indent - 8;
 
             const lines = doc.splitTextToSize(text, availableWidth);
-            addNewPageIfNeeded(6 * lines.length);
+            addNewPageIfNeeded(5 * lines.length + 4);
 
-            doc.text('•', bulletX, yPos);
+            doc.setTextColor(...colors.primary);
+            doc.text(bulletChar, bulletX, yPos);
+            doc.setTextColor(...colors.text);
+
             lines.forEach((line: string, idx: number) => {
-                if (idx > 0) yPos += 5;
                 doc.text(line, textX, yPos);
+                if (idx < lines.length - 1) yPos += 5;
             });
-            yPos += 6;
+            yPos += 7;
         };
 
-        // ============ TITLE PAGE ============
-        doc.setFontSize(24);
+        const drawInfoRow = (label: string, value: string, labelWidth: number = 35) => {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...colors.secondary);
+            doc.text(label + ':', margin, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...colors.text);
+            const valueLines = doc.splitTextToSize(value, contentWidth - labelWidth);
+            valueLines.forEach((line: string, idx: number) => {
+                doc.text(line, margin + labelWidth, yPos);
+                if (idx < valueLines.length - 1) yPos += 5;
+            });
+            yPos += 7;
+        };
+
+        const drawTable = (headers: string[], rows: string[][], colWidths: number[]) => {
+            const cellPadding = 3;
+            const rowHeight = 8;
+            const headerHeight = 10;
+
+            // Table header
+            addNewPageIfNeeded(headerHeight + rowHeight * 2);
+            doc.setFillColor(...colors.primary);
+            let xPos = margin;
+            doc.rect(margin, yPos - 5, contentWidth, headerHeight, 'F');
+
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...colors.white);
+            headers.forEach((header, idx) => {
+                doc.text(header, xPos + cellPadding, yPos);
+                xPos += colWidths[idx];
+            });
+            yPos += headerHeight;
+
+            // Table rows
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...colors.text);
+
+            rows.forEach((row, rowIdx) => {
+                const maxLines = Math.max(...row.map((cell, idx) =>
+                    doc.splitTextToSize(cell, colWidths[idx] - cellPadding * 2).length
+                ));
+                const currentRowHeight = Math.max(rowHeight, maxLines * 5 + 4);
+
+                addNewPageIfNeeded(currentRowHeight);
+
+                // Alternating row background
+                if (rowIdx % 2 === 0) {
+                    doc.setFillColor(...colors.light);
+                    doc.rect(margin, yPos - 4, contentWidth, currentRowHeight, 'F');
+                }
+
+                // Draw row border
+                doc.setDrawColor(220, 220, 220);
+                doc.setLineWidth(0.2);
+                doc.line(margin, yPos + currentRowHeight - 4, margin + contentWidth, yPos + currentRowHeight - 4);
+
+                xPos = margin;
+                row.forEach((cell, idx) => {
+                    const cellLines = doc.splitTextToSize(cell, colWidths[idx] - cellPadding * 2);
+                    let cellY = yPos;
+                    cellLines.slice(0, 3).forEach((line: string) => {
+                        doc.text(line, xPos + cellPadding, cellY);
+                        cellY += 5;
+                    });
+                    xPos += colWidths[idx];
+                });
+                yPos += currentRowHeight;
+            });
+            yPos += 5;
+        };
+
+        // ============ PAGE 1: TITLE PAGE ============
+        // Calculate header height based on content
+        const headerHeight = 130;
+
+        // Blue header background
+        doc.setFillColor(...colors.primary);
+        doc.rect(0, 0, pageWidth, headerHeight, 'F');
+
+        // Centered branding at top
+        doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 64, 175);
-        const titleLines = doc.splitTextToSize(meeting.title || 'Meeting Summary', contentWidth);
+        doc.setTextColor(...colors.white);
+        doc.text('AlignIQ', pageWidth / 2, 18, { align: 'center' });
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Meeting Intelligence Platform', pageWidth / 2, 26, { align: 'center' });
+
+        // Thin white line separator
+        doc.setDrawColor(...colors.white);
+        doc.setLineWidth(0.3);
+        doc.line(margin + 30, 32, pageWidth - margin - 30, 32);
+
+        // Meeting title - centered and prominent
+        yPos = 50;
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.white);
+        const titleText = meeting.title || 'Meeting Summary';
+        const titleLines = doc.splitTextToSize(titleText, contentWidth - 20);
         titleLines.forEach((line: string) => {
-            doc.text(line, margin, yPos);
-            yPos += 10;
+            doc.text(line, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 9;
         });
 
-        yPos += 5;
-        doc.setFontSize(11);
+        // Meeting metadata inside blue box
+        yPos += 10;
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Date: ${formatDate(meeting.date || meeting.created_at)}`, margin, yPos);
-        yPos += 6;
-        doc.text(`Duration: ${formatDuration(meeting.duration_ms || 0)}`, margin, yPos);
-        yPos += 6;
+        doc.setTextColor(200, 215, 240); // Light blue-white for labels
+
+        // Date row
+        const labelX = margin + 25;
+        const valueX = margin + 70;
+        doc.text('Date:', labelX, yPos);
+        doc.setTextColor(...colors.white);
+        doc.text(formatDate(meeting.date || meeting.created_at), valueX, yPos);
+
+        // Duration row
+        yPos += 10;
+        doc.setTextColor(200, 215, 240);
+        doc.text('Duration:', labelX, yPos);
+        doc.setTextColor(...colors.white);
+        doc.text(formatDuration(meeting.duration_ms || 0), valueX, yPos);
+
+        // Participants row
         if (meeting.participants && meeting.participants.length > 0) {
-            doc.text(`Participants: ${meeting.participants.join(', ')}`, margin, yPos);
-            yPos += 6;
+            yPos += 10;
+            doc.setTextColor(200, 215, 240);
+            doc.text('Participants:', labelX, yPos);
+            doc.setTextColor(...colors.white);
+            const participantText = meeting.participants.join(', ');
+            const participantLines = doc.splitTextToSize(participantText, contentWidth - 70);
+            participantLines.forEach((line: string, idx: number) => {
+                doc.text(line, valueX, yPos + (idx * 5));
+            });
         }
 
+        // Report generation timestamp at bottom of blue box
+        doc.setFontSize(8);
+        doc.setTextColor(180, 200, 230);
+        doc.text(`Report generated on ${new Date().toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        })}`, pageWidth / 2, headerHeight - 8, { align: 'center' });
+
+        // ============ CONTENTS SECTION (outside blue box) ============
+        yPos = headerHeight + 20;
+
+        // ============ TABLE OF CONTENTS ============
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.primary);
+        doc.text('Contents', margin, yPos);
         yPos += 10;
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.3);
-        doc.line(margin, yPos, pageWidth - margin, yPos);
-        yPos += 15;
+
+        const tocItems = [
+            { title: 'Executive Summary', hasContent: !!summary.summary_json?.narrative_summary },
+            { title: 'Action Items & Assignments', hasContent: (summary.summary_json?.action_items?.length || 0) > 0 },
+            { title: 'Achievements & Accomplishments', hasContent: (summary.summary_json?.achievements?.length || 0) > 0 },
+            { title: 'Blockers & Challenges', hasContent: (summary.summary_json?.blockers?.length || 0) > 0 },
+            { title: 'Meeting Chapters', hasContent: (summary.chapters_json?.length || 0) > 0 },
+            { title: 'Participant Analysis (Six Thinking Hats)', hasContent: (summary.hats_json?.length || 0) > 0 },
+        ];
+
+        let tocNumber = 1;
+        tocItems.forEach((item) => {
+            if (item.hasContent) {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...colors.text);
+                doc.text(`${tocNumber}. ${item.title}`, margin + 5, yPos);
+                // Dotted line to page number would go here in a more complex implementation
+                yPos += 7;
+                tocNumber++;
+            }
+        });
+
+        // Start new page for content
+        doc.addPage();
+        yPos = 25;
 
         // ============ EXECUTIVE SUMMARY ============
         if (summary.summary_json?.narrative_summary) {
-            addSectionHeader('Executive Summary');
-            doc.setTextColor(50, 50, 50);
-            addParagraph(summary.summary_json.narrative_summary);
+            drawSectionHeader('Executive Summary');
+            doc.setTextColor(...colors.text);
+            addParagraph(summary.summary_json.narrative_summary, 10);
+            yPos += 5;
         }
 
-        // ============ ACTION ITEMS / TO-DOs ============
+        // ============ ACTION ITEMS ============
         const actionItems = summary.summary_json?.action_items || [];
         if (actionItems.length > 0) {
-            addSectionHeader('Action Items & To-Dos');
-            doc.setFontSize(10);
+            drawSectionHeader('Action Items & Assignments');
 
-            actionItems.forEach((item: any, idx: number) => {
-                addNewPageIfNeeded(20);
+            // Summary count
+            doc.setFontSize(9);
+            doc.setTextColor(...colors.muted);
+            doc.text(`${actionItems.length} action item${actionItems.length !== 1 ? 's' : ''} identified`, margin, yPos);
+            yPos += 10;
 
-                // Task with number
-                doc.setFont('helvetica', 'bold');
-                doc.text(`${idx + 1}.`, margin, yPos);
+            // Action items table
+            const tableHeaders = ['#', 'Task Description', 'Owner', 'Priority', 'Deadline'];
+            const colWidths = [10, 75, 35, 25, 25];
 
-                const taskLines = doc.splitTextToSize(item.task || 'Untitled Task', contentWidth - 15);
-                taskLines.forEach((line: string, lineIdx: number) => {
-                    doc.text(line, margin + 8, yPos + (lineIdx * 5));
-                });
-                yPos += (taskLines.length * 5) + 2;
+            const tableRows = actionItems.map((item: any, idx: number) => [
+                String(idx + 1),
+                item.task || 'Untitled',
+                item.owner || 'Unassigned',
+                (item.priority || 'medium').charAt(0).toUpperCase() + (item.priority || 'medium').slice(1),
+                item.deadline || '—'
+            ]);
 
-                // Details
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(9);
-                doc.setTextColor(100, 100, 100);
-                const details = [];
-                if (item.owner) details.push(`Owner: ${item.owner}`);
-                if (item.deadline) details.push(`Deadline: ${item.deadline}`);
-                if (item.priority) details.push(`Priority: ${item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}`);
-
-                if (details.length > 0) {
-                    doc.text(details.join('  |  '), margin + 8, yPos);
-                    yPos += 6;
-                }
-                doc.setTextColor(50, 50, 50);
-                doc.setFontSize(10);
-                yPos += 4;
-            });
+            drawTable(tableHeaders, tableRows, colWidths);
+            yPos += 5;
         }
 
         // ============ ACHIEVEMENTS ============
         const achievements = summary.summary_json?.achievements || [];
         if (achievements.length > 0) {
-            addSectionHeader('Achievements & Accomplishments');
-            achievements.forEach((item: any) => {
-                addBulletPoint(`${item.achievement}${item.member ? ` (${item.member})` : ''}`);
+            drawSectionHeader('Achievements & Accomplishments');
+
+            achievements.forEach((item: any, idx: number) => {
+                addNewPageIfNeeded(20);
+
+                // Achievement with check mark
+                doc.setFontSize(10);
+                doc.setTextColor(...colors.accent);
+                doc.text('✓', margin, yPos);
+                doc.setTextColor(...colors.text);
+                doc.setFont('helvetica', 'normal');
+
+                const achievementText = item.achievement + (item.member ? ` — ${item.member}` : '');
+                const lines = doc.splitTextToSize(achievementText, contentWidth - 10);
+                lines.forEach((line: string, lineIdx: number) => {
+                    doc.text(line, margin + 8, yPos);
+                    if (lineIdx < lines.length - 1) yPos += 5;
+                });
+                yPos += 8;
             });
+            yPos += 5;
         }
 
-        // ============ BLOCKERS / CHALLENGES ============
+        // ============ BLOCKERS ============
         const blockers = summary.summary_json?.blockers || [];
         if (blockers.length > 0) {
-            addSectionHeader('Blockers & Challenges');
+            drawSectionHeader('Blockers & Challenges');
+
             blockers.forEach((item: any) => {
-                const severity = item.severity ? ` [${item.severity.toUpperCase()}]` : '';
-                addBulletPoint(`${item.blocker}${severity}${item.member ? ` - Affected: ${item.member}` : ''}`);
+                addNewPageIfNeeded(25);
+
+                // Severity indicator
+                const severityColors: Record<string, [number, number, number]> = {
+                    critical: colors.danger,
+                    major: colors.warning,
+                    minor: colors.muted
+                };
+                const severity = (item.severity || 'major').toLowerCase();
+                const severityColor = severityColors[severity] || colors.warning;
+
+                // Indicator bar
+                doc.setFillColor(...severityColor);
+                doc.rect(margin, yPos - 4, 3, 12, 'F');
+
+                // Blocker text
+                doc.setFontSize(10);
+                doc.setTextColor(...colors.text);
+                const blockerLines = doc.splitTextToSize(item.blocker, contentWidth - 15);
+                blockerLines.forEach((line: string, idx: number) => {
+                    doc.text(line, margin + 8, yPos);
+                    if (idx < blockerLines.length - 1) yPos += 5;
+                });
+
+                // Metadata
+                yPos += 6;
+                doc.setFontSize(8);
+                doc.setTextColor(...colors.muted);
+                const meta = [];
+                if (severity) meta.push(`Severity: ${severity.charAt(0).toUpperCase() + severity.slice(1)}`);
+                if (item.member) meta.push(`Affected: ${item.member}`);
+                doc.text(meta.join('  |  '), margin + 8, yPos);
+                yPos += 10;
             });
+            yPos += 5;
         }
 
         // ============ CHAPTERS ============
         const chapters = summary.chapters_json || [];
         if (chapters.length > 0) {
-            addSectionHeader('Meeting Chapters');
+            drawSectionHeader('Meeting Chapters');
 
             chapters.forEach((chapter: any, idx: number) => {
-                addNewPageIfNeeded(30);
+                addNewPageIfNeeded(35);
+
+                // Chapter number badge
+                doc.setFillColor(...colors.secondary);
+                doc.circle(margin + 5, yPos - 2, 4, 'F');
+                doc.setFontSize(8);
+                doc.setTextColor(...colors.white);
+                doc.text(String(idx + 1), margin + 3.5, yPos);
 
                 // Chapter title
-                doc.setFontSize(12);
+                doc.setFontSize(11);
                 doc.setFont('helvetica', 'bold');
-                doc.setTextColor(50, 50, 50);
-                doc.text(`Chapter ${idx + 1}: ${chapter.title || 'Untitled'}`, margin, yPos);
-                yPos += 7;
+                doc.setTextColor(...colors.text);
+                doc.text(chapter.title || `Chapter ${idx + 1}`, margin + 14, yPos);
+                yPos += 8;
 
                 // Chapter summary
                 if (chapter.summary) {
-                    doc.setFontSize(10);
                     doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(70, 70, 70);
-                    addParagraph(chapter.summary);
+                    doc.setFontSize(10);
+                    doc.setTextColor(...colors.secondary);
+                    addParagraph(chapter.summary, 10, 14);
                 }
-
                 yPos += 5;
             });
         }
@@ -379,10 +634,16 @@ export default function MeetingDetailPage() {
         // ============ SIX THINKING HATS ============
         const hats = summary.hats_json || [];
         if (hats.length > 0) {
-            addSectionHeader('Six Thinking Hats Analysis');
-            doc.setFontSize(10);
+            drawSectionHeader('Participant Analysis (Six Thinking Hats)');
 
-            // Get unique speakers with their dominant hat
+            // Brief explanation
+            doc.setFontSize(9);
+            doc.setTextColor(...colors.muted);
+            const hatExplanation = 'The Six Thinking Hats framework analyzes how each participant contributed to the discussion based on their dominant thinking style.';
+            addParagraph(hatExplanation, 9);
+            yPos += 3;
+
+            // Get unique speakers
             const speakerHats: Record<string, any> = {};
             hats.forEach((hat: any) => {
                 if (!speakerHats[hat.speaker]) {
@@ -391,27 +652,43 @@ export default function MeetingDetailPage() {
             });
 
             Object.entries(speakerHats).forEach(([speaker, hat]: [string, any]) => {
-                addNewPageIfNeeded(15);
+                addNewPageIfNeeded(40);
 
-                const hatInfo = HAT_DESCRIPTIONS[hat.hat as keyof typeof HAT_DESCRIPTIONS];
+                const hatKey = (hat.hat || 'white').toLowerCase();
+                const hatInfo = HAT_DESCRIPTIONS[hatKey as keyof typeof HAT_DESCRIPTIONS];
+                const hatColor = hatColors[hatKey] || hatColors.white;
+
+                // Hat color indicator bar
+                doc.setFillColor(...hatColor);
+                doc.rect(margin, yPos - 4, contentWidth, 18, 'F');
+
+                // Speaker name
+                doc.setFontSize(11);
                 doc.setFont('helvetica', 'bold');
-                doc.text(`${speaker}:`, margin, yPos);
-                doc.setFont('helvetica', 'normal');
-                doc.text(` ${hatInfo?.name || hat.hat}`, margin + doc.getTextWidth(`${speaker}: `), yPos);
-                yPos += 5;
+                doc.setTextColor(...colors.white);
+                doc.text(speaker, margin + 5, yPos + 2);
 
+                // Hat name badge
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                const hatName = hatInfo?.name || `${hatKey.charAt(0).toUpperCase() + hatKey.slice(1)} Hat`;
+                doc.text(hatName, margin + 5, yPos + 9);
+
+                yPos += 20;
+
+                // Evidence/explanation
                 if (hat.evidence) {
-                    doc.setFontSize(9);
-                    doc.setTextColor(100, 100, 100);
-                    const evidenceLines = doc.splitTextToSize(hat.evidence, contentWidth - 10);
-                    evidenceLines.slice(0, 2).forEach((line: string) => {
-                        doc.text(line, margin + 5, yPos);
-                        yPos += 4;
-                    });
-                    doc.setTextColor(50, 50, 50);
                     doc.setFontSize(10);
+                    doc.setTextColor(...colors.text);
+                    doc.setFont('helvetica', 'normal');
+                    addParagraph(hat.evidence, 10, 5);
+                } else {
+                    doc.setFontSize(9);
+                    doc.setTextColor(...colors.muted);
+                    doc.text(hatInfo?.description || 'No additional details available.', margin + 5, yPos);
+                    yPos += 8;
                 }
-                yPos += 4;
+                yPos += 5;
             });
         }
 
@@ -419,17 +696,20 @@ export default function MeetingDetailPage() {
         const totalPages = doc.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
+
+            // Footer line
+            doc.setDrawColor(...colors.light);
+            doc.setLineWidth(0.5);
+            doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+
+            // Page number and branding
             doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text(
-                `Page ${i} of ${totalPages}  |  Generated by Meeting Summarizer`,
-                pageWidth / 2,
-                pageHeight - 10,
-                { align: 'center' }
-            );
+            doc.setTextColor(...colors.muted);
+            doc.text(`Page ${i} of ${totalPages}`, margin, pageHeight - 8);
+            doc.text('Generated by AlignIQ', pageWidth - margin, pageHeight - 8, { align: 'right' });
         }
 
-        // Save the PDF
+        // ============ SAVE PDF ============
         const filename = (meeting.title || 'meeting')
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '_')
