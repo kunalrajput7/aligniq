@@ -179,13 +179,18 @@ BLOCKERS:
 - severity: critical (blocking progress), major (significant impact), minor (inconvenience)
 - Flag anything that could delay or prevent success
 
-SIX THINKING HATS (assign ONE dominant hat per participant):
-- White: Facts, data, information-focused (analytical)
-- Red: Emotions, feelings, intuition (expressive)
-- Black: Caution, risks, critical thinking (cautious)
-- Yellow: Optimism, benefits, opportunities (positive)
-- Green: Creativity, alternatives, new ideas (innovative)
-- Blue: Process, organization, control (facilitative)
+SIX THINKING HATS (assign ONE dominant hat per participant based on their behavior):
+- White: Gathered relevant data and facts before decisions (analytical, information-focused)
+- Red: Expressed feelings and gut reactions to ideas (emotional, intuitive)
+- Black: Identified potential risks and challenges early (cautious, critical thinker)
+- Yellow: Highlighted positive aspects and benefits (optimistic, opportunity-focused)
+- Green: Encouraged brainstorming and creative thinking (innovative, idea generator)
+- Blue: Kept the team organized and followed processes (facilitative, process-oriented)
+
+IMPORTANT: For each participant's "explanation" field, provide EXACTLY 3 sentences:
+1. What specific behaviors or statements demonstrated this hat
+2. How this thinking style contributed to the meeting outcomes
+3. A concrete example or quote that exemplifies their dominant hat
 
 Return ONLY valid JSON."""
 

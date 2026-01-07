@@ -122,37 +122,37 @@ export interface HatUIConfig {
 export const HAT_DESCRIPTIONS: Record<Hat['hat'], HatUIConfig> = {
   white: {
     name: 'White Hat',
-    description: 'Focuses on data, facts, and information. Analytical and objective thinking.',
+    description: 'Gather all the relevant data and facts before starting a project.',
     legendClass: 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600',
     chipClass: 'bg-gray-200 text-gray-900 border-gray-400 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-500'
   },
   red: {
     name: 'Red Hat',
-    description: 'Focuses on emotions, feelings, and intuition. Expressive and instinctive.',
+    description: 'Express your feelings and gut reactions to the project ideas.',
     legendClass: 'bg-red-100 dark:bg-red-900/40 text-red-900 dark:text-red-100 border-red-300 dark:border-red-700',
     chipClass: 'bg-red-200 text-red-900 border-red-400 dark:bg-red-800/50 dark:text-red-100 dark:border-red-600'
   },
   black: {
     name: 'Black Hat',
-    description: 'Focuses on caution, difficulties, and critical thinking. Risk-aware.',
+    description: 'Identify potential risks and challenges early.',
     legendClass: 'bg-slate-800 text-slate-100 border-slate-600',
     chipClass: 'bg-slate-900 text-slate-100 border-slate-700'
   },
   yellow: {
     name: 'Yellow Hat',
-    description: 'Focuses on positivity, benefits, and optimism. Highlights opportunities.',
+    description: 'Highlight the positive aspects and benefits.',
     legendClass: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-100 border-yellow-300 dark:border-yellow-700',
     chipClass: 'bg-yellow-200 text-yellow-900 border-yellow-400 dark:bg-yellow-800/50 dark:text-yellow-100 dark:border-yellow-600'
   },
   green: {
     name: 'Green Hat',
-    description: 'Focuses on creativity, alternatives, and new ideas. Innovative thinking.',
+    description: 'Encourage brainstorming, creative thinking.',
     legendClass: 'bg-green-100 dark:bg-green-900/40 text-green-900 dark:text-green-100 border-green-300 dark:border-green-700',
     chipClass: 'bg-green-200 text-green-900 border-green-400 dark:bg-green-800/50 dark:text-green-100 dark:border-green-600'
   },
   blue: {
     name: 'Blue Hat',
-    description: 'Focuses on process, control, and organization. Strategic planning.',
+    description: 'Keep the team organized; follow processes.',
     legendClass: 'bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 border-blue-300 dark:border-blue-700',
     chipClass: 'bg-blue-200 text-blue-900 border-blue-400 dark:bg-blue-800/50 dark:text-blue-100 dark:border-blue-600'
   }

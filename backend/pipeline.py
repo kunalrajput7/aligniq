@@ -660,9 +660,10 @@ async def run_pipeline_async(
                 if not isinstance(hats_data, dict):
                     continue
 
-                # New simplified structure: dominant_hat + evidence from Stage 2
+                # New simplified structure: dominant_hat + explanation from Stage 2
                 dominant_hat = hats_data.get("dominant_hat", "white")
-                evidence = hats_data.get("evidence", "")
+                # Stage 2 returns 'explanation' field with the 3-sentence reasoning
+                evidence = hats_data.get("explanation", "") or hats_data.get("evidence", "")
 
                 # Ensure evidence ends with period
                 if evidence and evidence[-1] != ".":

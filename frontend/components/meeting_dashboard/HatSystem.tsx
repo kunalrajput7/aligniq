@@ -19,20 +19,20 @@ export function HatSystem({ hats, participants }: HatSystemProps) {
     if (!text) {
       return `${participant} exhibited the ${HAT_DESCRIPTIONS[hatKey].name.toLowerCase()} throughout the session, contributing in line with that mindset.`;
     }
+    // Clean and split into sentences
     const sentences = text
       .replace(/\s+/g, ' ')
       .trim()
       .split(/(?<=[.!?])\s+/)
       .filter(Boolean);
 
+    // Return all 3 sentences if available (new backend format)
     if (sentences.length >= 3) {
       return sentences.slice(0, 3).join(' ');
     }
-    if (sentences.length === 2) {
+    // If we have fewer sentences, display what we have
+    if (sentences.length >= 1) {
       return sentences.join(' ');
-    }
-    if (sentences.length === 1) {
-      return `${sentences[0]} They reinforced this perspective consistently during the discussion.`;
     }
     return text;
   };
@@ -86,16 +86,16 @@ export function HatSystem({ hats, participants }: HatSystemProps) {
               return (
                 <div
                   key={speaker}
-                  className={`flex items-start gap-3 p-4 border rounded-lg shadow-sm transition-colors ${hatInfo.legendClass}`}
+                  className={`flex items-start gap-3 p-4 border rounded-lg shadow-sm transition-colors h-auto ${hatInfo.legendClass}`}
                 >
                   <div className="flex-1 min-w-0 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="font-semibold text-sm">{speaker}</div>
                       <Badge className={`${hatInfo.chipClass} text-xs shrink-0`}>
                         {hatInfo.name}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-normal break-words">
                       {reasoning}
                     </p>
                   </div>
